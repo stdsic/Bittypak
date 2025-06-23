@@ -13,6 +13,27 @@
 #define WM_PLAYNEXT					WM_APP + 1
 #define WM_NEWPOSITION				WM_APP + 2
 
+// volatile 키워드를 사용하면 변수의 값을 레지스터나 캐시에 저장해 속도를 높이는 최적화를 막는다.
+// 즉, 캐싱이나 컴파일러에 의한 최적화를 막아 항상 메모리에서 직접 최신 값을 읽도록 한다.
+// 이는 단순히 읽고 쓰는 용도의 전역 변수를 멀티 스레드 환경에서 사용하고자 할 때 유용하다.
+// 다만, 지금은 적절하지 않으므로 이벤트 객체를 사용하기로 한다.
+// static volatile BOOL bAudioCapture = FALSE;
+
+class PlayerCallback;
+
+HANDLE hStopEvent     = NULL;
+DWORD WINAPI RecordThread(LPVOID lParam);
+
+HRESULT Initialize();
+void Cleanup();
+void OpenFiles(HWND hWnd, HWND hListView);
+void AppendFile(HWND hListView, WCHAR* Path);
+BOOL PlaySelectedItem(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bPaused = FALSE);
+BOOL PlayNextOrPrev(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bNext);
+BOOL WriteWavHeader(HANDLE hFile, DWORD DataSize, WORD Channels, DWORD SampleRate, WORD BitsPerSample);
+
+LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
+
 // 콜백용 클래스 생성
 class PlayerCallback : public IMFPMediaPlayerCallback{
 	LONG RefCount = 1;
@@ -133,30 +154,16 @@ class PlayerCallback : public IMFPMediaPlayerCallback{
 	}
 
 	public:
-	PlayerCallback(HWND _hWnd) : hWnd(_hWnd){;}
+	PlayerCallback(HWND _hWnd) : hWnd(_hWnd) {;}
 	~PlayerCallback() {
 		if(pPlayer){
 			pPlayer->Release();
 			pPlayer = NULL;
 		}
 	}
-
 };
 
-HRESULT Initialize();
-void Cleanup();
-void OpenFiles(HWND hWnd, HWND hListView);
-void AppendFile(HWND hListView, WCHAR* Path);
-void PlaySelectedItem(HWND hWnd, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer **pPlayer, BOOL bPaused = FALSE);
-void PlayNextOrPrev(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, IMFPMediaPlayer* pPlayer, BOOL bNext);
-BOOL SystemAudioCapture(const WCHAR* FileName, int Seconds = 5);
-void WriteWavHeader(HANDLE hFile, DWORD DataSize, WORD Channels, DWORD SampleRate, WORD BitsPerSample);
-
-LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
 int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int nCmdShow){
-	HRESULT hr = Initialize();
-	if(FAILED(hr)){ return 0; }
-
 	WNDCLASSEX wcex = {
 		sizeof(wcex),
 		CS_HREDRAW | CS_VREDRAW,
@@ -192,7 +199,6 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int nCmdShow){
 		DispatchMessage(&msg);
 	}
 
-	Cleanup();
 	return (int)msg.wParam;
 }
 
@@ -236,10 +242,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 	static BOOL bSeeking = FALSE;
 	WCHAR Debug[256];
 
+	static HANDLE hRecordThread  = NULL;
+	static DWORD dwThreadID;
+
 	switch (iMessage){
 		case WM_CREATE:
-			pCallback = new PlayerCallback(hWnd);
 			{
+				hr = Initialize();
+				if(FAILED(hr)){ return -1; }
+
 				hdc = GetDC(hWnd);
 				GetTextExtentPoint32(hdc, Description, wcslen(Description), &TextSize);
 				GetTextExtentPoint32(hdc, TimeSample, wcslen(TimeSample), &TimeTextSize);
@@ -271,6 +282,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 				COL.iSubItem = 0;
 				ListView_InsertColumn(hListView, 0, &COL);
 
+				pCallback = new PlayerCallback(hWnd);
 				DragAcceptFiles(hWnd, TRUE);
 			}
 			return 0;
@@ -315,30 +327,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 					// 리스트 뷰 활용 -> 선택한 항목 문자열 불러온 후 파일 재생
 					KillTimer(hWnd, 1);
 					if(HIWORD(wParam) == PRESSED){
-						int nCount = ListView_GetItemCount(hListView);
-						int SelectItem = ListView_GetNextItem(hListView, -1, LVNI_SELECTED);
-						if(SelectItem == -1 && nCount == 0){ 
-							SendMessage(hBtns[1], CBM_SETSTATE, UP, (LPARAM)0);
-							return 0;
+						if(PlaySelectedItem(hWnd, hBtns[1], hListView, hVolume, pCallback, &pPlayer)){
+							SetTimer(hWnd, 1, 50, NULL);
 						}
-						SetTimer(hWnd, 1, 50, NULL);
-						PlaySelectedItem(hWnd, hListView, hVolume, pCallback, &pPlayer);
-					}
-
-					if(HIWORD(wParam) == RELEASED){
-						PlaySelectedItem(hWnd, hListView, hVolume, pCallback, &pPlayer, TRUE);
+					}else{
+						PlaySelectedItem(hWnd, hBtns[1], hListView, hVolume, pCallback, &pPlayer, TRUE);
 					}
 					break;
 
 				case IDC_BTNFIRST + 2:
 					if(HIWORD(wParam) == PRESSED){
-						PlayNextOrPrev(hWnd, hBtns[1], hListView, hVolume, pPlayer, FALSE);
+						PlayNextOrPrev(hWnd, hBtns[1], hListView, hVolume, pCallback, &pPlayer, FALSE);
 					}
 					break;
 
 				case IDC_BTNFIRST + 3:
 					if(HIWORD(wParam) == PRESSED){
-						PlayNextOrPrev(hWnd, hBtns[1], hListView, hVolume, pPlayer, TRUE);
+						PlayNextOrPrev(hWnd, hBtns[1], hListView, hVolume, pCallback, &pPlayer, TRUE);
 					}
 					break;
 
@@ -398,7 +403,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 					break;
 
 				case IDC_BTNFIRST + 6:
-					SystemAudioCapture(L"AudioCaptureTest.wav");
+					if(HIWORD(wParam) == PRESSED){
+						hStopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+						hRecordThread = CreateThread(NULL, 0, RecordThread, (LPVOID)NULL, 0, &dwThreadID);
+					}else{
+						SetEvent(hStopEvent);
+						WaitForSingleObject(hRecordThread, INFINITE);
+						CloseHandle(hRecordThread);
+						CloseHandle(hStopEvent);
+						hRecordThread = hStopEvent = NULL;
+					}
 					break;
 
 				case IDC_BTNFIRST + 7:
@@ -648,7 +662,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 			return 0;
 
 		case WM_PLAYNEXT:
-			PlayNextOrPrev(hWnd, hBtns[1], hListView, hVolume, pPlayer, TRUE);
+			PlayNextOrPrev(hWnd, hBtns[1], hListView, hVolume, pCallback, &pPlayer, TRUE);
 			return 0;
 
 		case WM_TIMER:
@@ -684,6 +698,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 					}
 					PropVariantClear(&PropPosition);
 					PropVariantClear(&PropDuration);
+					break;
+
+				case 2:
+					{
+
+					}
 					break;
 			}
 			InvalidateRect(hWnd, NULL, FALSE);
@@ -722,8 +742,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 							if(FAILED(hr)){
 								wsprintf(Debug, L"SetPosition 실패: 0x%08X", hr);
 								MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK);
-							}else{
-								pPlayer->Pause();
 							}
 							PropVariantClear(&PropPosition);
 						}
@@ -743,9 +761,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 		case WM_NEWPOSITION:
 			if(pPlayer){
 				enum tag_ButtonState State = (enum tag_ButtonState)SendMessage(hBtns[1], CBM_GETSTATE, 0,0);
-				if(State == DOWN){
-					pPlayer->Play();
-				}
+				pPlayer->Play();
 			}
 			return 0;
 
@@ -760,7 +776,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 				pCallback->Release();
 				pCallback = NULL;
 			}
+			if(hRecordThread){ CloseHandle(hRecordThread); }
+			if(hStopEvent){ CloseHandle(hStopEvent); }
 			if(hBitmap){ DeleteObject(hBitmap); }
+			Cleanup();
 			PostQuitMessage(0);
 			return 0;
 	}
@@ -768,12 +787,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 	return DefWindowProc(hWnd, iMessage, wParam, lParam);
 }
 
-HRESULT Initialize() {
+HRESULT Initialize(){
 	HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
-	if (FAILED(hr)) { return hr; }
+	if(FAILED(hr)){ return hr; }
 
 	hr = MFStartup(MF_VERSION);
-	if (FAILED(hr)) { return hr;  }
+	if(FAILED(hr)){ return hr;  }
 
 	return S_OK;
 }
@@ -839,13 +858,16 @@ void AppendFile(HWND hListView, WCHAR* Path) {
 	ListView_InsertItem(hListView, &LI);
 }
 
-void PlaySelectedItem(HWND hWnd, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer **pPlayer, BOOL bPaused){
-	if(pCallback == NULL){ return ; }
+BOOL PlaySelectedItem(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bPaused){
+	if(pCallback == NULL){ return FALSE; }
 
 	static WCHAR LastPath[MAX_PATH] = L"";
 	int nCount = ListView_GetItemCount(hListView);
 	int SelectItem = ListView_GetNextItem(hListView, -1, LVNI_SELECTED);
-	if(SelectItem == -1 && nCount == 0){ return; }
+	if(SelectItem == -1 && nCount == 0){
+		SendMessage(hBtn, CBM_SETSTATE, UP, (LPARAM)0);
+		return FALSE;
+	}
 	if(SelectItem == -1 && nCount != 0){ SelectItem = 0; }
 
 	LVITEM li = { 0 };
@@ -854,79 +876,77 @@ void PlaySelectedItem(HWND hWnd, HWND hListView, HWND hVolume, PlayerCallback* p
 	ListView_GetItem(hListView, &li);
 
 	WCHAR* Path = (WCHAR*)li.lParam;
-	if(!Path){ return; }
+	if(!Path || wcslen(Path) == 0){ return FALSE; }
 
-	if(*pPlayer){
-		MFP_MEDIAPLAYER_STATE State;
-		(*pPlayer)->GetState(&State);
+	BOOL Same = (wcscmp(Path, LastPath) == 0);
 
-		if(wcscmp(Path, LastPath) == 0){
-			if(State == MFP_MEDIAPLAYER_STATE_PLAYING && bPaused == TRUE){
-				(*pPlayer)->Pause();
-			}else if(State == MFP_MEDIAPLAYER_STATE_PAUSED && bPaused == FALSE){
-				(*pPlayer)->Play();
-			}
-			return;
+	if(*pPlayer && Same){
+		if(bPaused){
+			(*pPlayer)->Pause();
+		}else{
+			(*pPlayer)->Play();
 		}
-			
-		// 다른 파일이면 기존 플레이어 정리
+	}else{
+		if(*pPlayer){
+			(*pPlayer)->Shutdown();
+			(*pPlayer)->Release();
+			*pPlayer = NULL;
+		}
+
+		HRESULT hr = MFPCreateMediaPlayer(Path, FALSE, 0, pCallback, hWnd, pPlayer);
+		if (SUCCEEDED(hr)) {
+			float vol = (float)SendMessage(hVolume, CSM_GETPOSITION, 0, 0) / 255.f;
+			(*pPlayer)->SetVolume(vol);
+			(*pPlayer)->Play();
+			wcscpy_s(LastPath, Path);
+			SendMessage(hBtn, CBM_SETSTATE, DOWN, (LPARAM)0);
+		} else {
+			SendMessage(hBtn, CBM_SETSTATE, UP, 0);
+			*pPlayer = NULL; // 안전망
+			return FALSE;
+		}
+	}
+
+	return TRUE;
+}
+
+BOOL PlayNextOrPrev(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bNext){
+	if(*pPlayer){
+		(*pPlayer)->Stop();
 		(*pPlayer)->Shutdown();
 		(*pPlayer)->Release();
 		*pPlayer = NULL;
+		SendMessage(hBtn, CBM_SETSTATE, UP, (LPARAM)0);
 	}
-
-	if(SUCCEEDED(MFPCreateMediaPlayer(Path, FALSE, 0, pCallback, hWnd, pPlayer))){
-		pCallback->SetPlayer(*pPlayer);
-
-		int CurrentPosition = SendMessage(hVolume, CSM_GETPOSITION, 0,0);
-		float fUserVolume = (float)CurrentPosition / 255.f;
-		(*pPlayer)->SetVolume(fUserVolume);
-		(*pPlayer)->Play();
-		wcscpy_s(LastPath, Path);
-	}
-}
-
-// void PlayNextOrPrev(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bNext){
-void PlayNextOrPrev(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, IMFPMediaPlayer* pPlayer, BOOL bNext){
-	if(pPlayer){ 
-		MFP_MEDIAPLAYER_STATE State;
-		HRESULT hr = pPlayer->GetState(&State);
-		if(State == MFP_MEDIAPLAYER_STATE_PLAYING || State == MFP_MEDIAPLAYER_STATE_PAUSED){
-			pPlayer->Stop();
-		}
-	}
-	SendMessage(hBtn, CBM_SETSTATE, UP, (LPARAM)0);
 
 	int nCount = ListView_GetItemCount(hListView);
-	int SelectItem = ListView_GetNextItem(hListView, -1, LVNI_SELECTED);
+	if(nCount == 0){ return FALSE; }
 
-	if(SelectItem == -1 && nCount != 0){
-		SelectItem = 0;
-	}
+	int SelectItem = ListView_GetNextItem(hListView, -1, LVNI_SELECTED);
+	if(SelectItem == -1){ SelectItem = 0; }
 
 	if(SelectItem != -1){
 		if(bNext){
-			if(SelectItem + 1 >= nCount){
-				SelectItem = 0;
-			}else{
-				SelectItem += 1;
-			}
+			SelectItem = (SelectItem + 1) % nCount;
 		}else{
-			if(SelectItem - 1 <= -1){
-				SelectItem = nCount - 1;
-			}else{
-				SelectItem -= 1;
-			}
+			SelectItem = (SelectItem - 1 + nCount) % nCount;
 		}
 
 		ListView_SetItemState(hListView, -1, 0, LVIS_SELECTED | LVIS_FOCUSED);
 		ListView_SetItemState(hListView, SelectItem, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
 		SendMessage(hBtn, CBM_SETSTATE, DOWN, (LPARAM)0);
-		SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 1, PRESSED), (LPARAM)hBtn);
+		PlaySelectedItem(hWnd, hBtn, hListView, hVolume, pCallback, pPlayer, FALSE);
 	}
+
+	return TRUE;
 }
 
-BOOL SystemAudioCapture(const WCHAR* FileName, int Seconds){
+DWORD WINAPI RecordThread(LPVOID lParam){
+	WCHAR Debug[0x100];
+	HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+
+	const WCHAR *FileName = L"AudioCaptureTest.wav";
+
 	WAVEFORMATEX* pwfx = NULL;
 	IMMDevice* pDevice = NULL;
 	IAudioClient* pAudioClient = NULL;
@@ -939,72 +959,134 @@ BOOL SystemAudioCapture(const WCHAR* FileName, int Seconds){
 	UINT32 PacketLength = 0;
 	DWORD TotalBytesWritten = 0;
 
-	BOOL Success = FALSE;
+	HANDLE hCaptureEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	HANDLE Waits[2] = { hCaptureEvent, hStopEvent };
 
 	do{
 		// 기본 렌더러 가져옴(스피커)
-		if(FAILED(CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void**)&pEnumerator))){ break; }
-		if(FAILED(pEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &pDevice))){ break; }
+		hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void**)&pEnumerator);
+		if(FAILED(hr)){
+			wsprintf(Debug, L"CoCreateInstance Failed: 0x%08X", hr);
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+			break;
+		}
+
+		hr = pEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &pDevice);
+		if(FAILED(hr)){
+			wsprintf(Debug, L"DefaultAudioEndpoint Failed: 0x%08X", hr);
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+			break;
+		}
 
 		// 기본 장치에서 AudioClient 인터페이스 활성화
-		if(FAILED(pDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, NULL, (void**)&pAudioClient))){ break; }
-		// 스테레오 믹스 오디오 포맷 가져옴
-		if(FAILED(pAudioClient->GetMixFormat(&pwfx))){ break; }
+		hr = pDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, NULL, (void**)&pAudioClient);
+		if(FAILED(hr)){
+			wsprintf(Debug, L"AudioClient Failed: 0x%08X", hr);
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+			break;
+		}
 
-		// 루프백 + 캡처 초기화
-		if(FAILED(pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, 0, 0, pwfx, NULL))){ break; }
+		// 스테레오 믹스 오디오 포맷 가져옴
+		hr = pAudioClient->GetMixFormat(&pwfx);
+		if(FAILED(hr)){
+			wsprintf(Debug, L"GetMixFormat Failed: 0x%08X", hr);
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+			break;
+		}
+
+		// 루프백 및 콜백 사용 캡처 초기화, 이벤트 객체 적용
+		REFERENCE_TIME BufferDuration = 10000000;
+		hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK, BufferDuration, 0, pwfx, NULL);
+		if(FAILED(hr)){
+			wsprintf(Debug, L"AudioClient Initialize Failed: 0x%08X", hr);
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+			break;
+		}
+
+		hr = pAudioClient->SetEventHandle(hCaptureEvent);
+		if(FAILED(hr)){
+			wsprintf(Debug, L"AudioClient SetEventHandle Failed: 0x%08X", hr);
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+			break;
+		}
 
 		// 오디오 캡처 클라이언트 인터페이스 가져옴
-		if(FAILED(pAudioClient->GetService(__uuidof(IAudioCaptureClient), (void**)&pCaptureClient))){ break; }
-
-		// 캡처 시작
-		if(FAILED(pAudioClient->Start())){ break; }
+		hr = pAudioClient->GetService(__uuidof(IAudioCaptureClient), (void**)&pCaptureClient);
+		if(FAILED(hr)){
+			wsprintf(Debug, L"AudioClient GetService Failed: 0x%08X", hr);
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+			break;
+		}
 
 		// WAV 헤더 비워두고 샘플 데이터 작성
-		hFile = CreateFileW(FileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-		if(hFile == INVALID_HANDLE_VALUE){ break; }
+		hFile = CreateFile(FileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		if(hFile == INVALID_HANDLE_VALUE){
+			wsprintf(Debug, L"CreateFile Failed: %d", GetLastError());
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+			break;
+		}
 
-		DWORD dwDummy = 0;
-		WriteFile(hFile, &dwDummy, 44/* wav header */, &dwDummy, NULL);
+		DWORD Written = 0;
+		BYTE Dummy[44] = {0,};
+		if(!WriteFile(hFile, &Dummy, 44/* wav header */, &Written, NULL) || Written != 44){
+			wsprintf(Debug, L"WriteFile Failed: %d", GetLastError());
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+			break;
+		}
 
-		DWORD StartTime = GetTickCount();
-		while(GetTickCount() - StartTime < (DWORD)(Seconds * 1000)){
-			pCaptureClient->GetNextPacketSize(&PacketLength);
+		// 캡처 시작
+		hr = pAudioClient->Start();
+		if(FAILED(hr)){
+			wsprintf(Debug, L"pAudioClient Start Failed: 0x%08X", hr);
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+			break;
+		}
 
-			while(PacketLength > 0){
-				UINT32 NumFrames;
-				pCaptureClient->GetBuffer(&pData, &NumFrames, &dwFlags, NULL, NULL);
-
-				DWORD Written = 0;
-				DWORD BytesToWrite = NumFrames * pwfx->nBlockAlign;
-				WriteFile(hFile, pData, BytesToWrite, &Written, NULL);
-				TotalBytesWritten += Written;
-
-				pCaptureClient->ReleaseBuffer(NumFrames);
-				pCaptureClient->GetNextPacketSize(&PacketLength);
+		while(1){
+			DWORD ret = WaitForMultipleObjects(2, Waits, FALSE, INFINITE);
+			if(ret == WAIT_OBJECT_0 + 1){
+				break;
 			}
-			Sleep(10);
+
+			if(ret == WAIT_OBJECT_0){
+				pCaptureClient->GetNextPacketSize(&PacketLength);
+
+				while(PacketLength > 0){
+					UINT32 NumFrames;
+					pCaptureClient->GetBuffer(&pData, &NumFrames, &dwFlags, NULL, NULL);
+
+					DWORD BytesToWrite = NumFrames * pwfx->nBlockAlign;
+					WriteFile(hFile, pData, BytesToWrite, &Written, NULL);
+					TotalBytesWritten += Written;
+
+					pCaptureClient->ReleaseBuffer(NumFrames);
+					pCaptureClient->GetNextPacketSize(&PacketLength);
+				}
+			}
 		}
 		pAudioClient->Stop();
 
 		SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
-		WriteWavHeader(hFile, TotalBytesWritten, pwfx->nChannels, pwfx->nSamplesPerSec, pwfx->wBitsPerSample);
-
-		Success = TRUE;
+		if(!WriteWavHeader(hFile, TotalBytesWritten, pwfx->nChannels, pwfx->nSamplesPerSec, pwfx->wBitsPerSample)){
+			wsprintf(Debug, L"WriteWavHeader Failed");
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+		}
 	}while(FALSE);
 
 	if(hFile != INVALID_HANDLE_VALUE){ CloseHandle(hFile); }
 	if(pwfx){ CoTaskMemFree(pwfx); }
 	if(pCaptureClient){ pCaptureClient->Release(); }
+	if(hCaptureEvent){ CloseHandle(hCaptureEvent); }
 	if(pAudioClient){ pAudioClient->Release(); }
 	if(pDevice){ pDevice->Release(); }
 	if(pEnumerator){ pEnumerator->Release(); }
 
-	return Success;
+	CoUninitialize();
+	return 0;
 }
 
-void WriteWavHeader(HANDLE hFile, DWORD DataSize, WORD Channels, DWORD SampleRate, WORD BitsPerSample){
-	WAVHEADER Header;
+BOOL WriteWavHeader(HANDLE hFile, DWORD DataSize, WORD Channels, DWORD SampleRate, WORD BitsPerSample){
+	WAVHEADER Header = { 0 };
 
 	memcpy(Header.ChunkID, "RIFF", 4);
 	Header.ChunkSize = 36 + DataSize;
@@ -1024,6 +1106,6 @@ void WriteWavHeader(HANDLE hFile, DWORD DataSize, WORD Channels, DWORD SampleRat
 
 	DWORD Written = 0;
 	SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
-	WriteFile(hFile, &Header, sizeof(WAVHEADER), &Written, NULL);
+	BOOL OK = WriteFile(hFile, &Header, sizeof(Header), &Written, NULL);
+	return OK && Written == sizeof(Header);
 }
-
