@@ -1,0 +1,8 @@
+#ignored
+*.exe
+*.res
+*.rc
+*.o
+*.bat
+*.cmd
+*.txt
