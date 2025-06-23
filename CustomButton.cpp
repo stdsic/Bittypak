@@ -330,6 +330,23 @@ LRESULT CALLBACK CustomButtonProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARA
 						DeleteObject(SelectObject(hMemDC, hOldBrush));
 					}
 					break;
+
+				case CAPTURE:
+					{
+						hBrush = CreateSolidBrush(RGB(255,0,0));
+						hOldBrush = (HBRUSH)SelectObject(hMemDC, hBrush);
+
+						POINT Origin = { (crt.right - crt.left) / 2, (crt.bottom - crt.top) / 2 };
+						Ellipse(hMemDC, Origin.x - Origin.x / 2, Origin.y - Origin.y / 2, Origin.x + Origin.x / 2, Origin.y + Origin.y / 2);
+						DeleteObject(SelectObject(hMemDC, hOldBrush));
+					}
+					break;
+
+				case MENU:
+					{
+						
+					}
+					break;
 			}
 
 			GetObject(pData->hBitmap, sizeof(BITMAP), &bmp);
