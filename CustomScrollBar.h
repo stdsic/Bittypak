@@ -1,0 +1,26 @@
+#ifndef __CUSTOM_SCROLLBAR_H_
+#define __CUSTOM_SCROLLBAR_H_
+#include <windows.h>
+#define SCROLLBAR_CLASS_NAME		L"MyCustomScrollBar"
+#define IDC_SCRLFIRST				0x700			
+
+enum tag_ScrollBarStyle { 
+	CSS_VERT = 0x010000,
+	CSS_HORZ = 0x020000
+};	// 1, 2, 3, 8, 9, A, B
+
+enum tag_ScrollBarMessage { 
+	CSM_SETRANGE = WM_USER + 11,
+	CSM_GETRANGEMIN,
+	CSM_GETRANGEMAX,
+	CSM_SETPOSITION,
+	CSM_GETPOSITION,
+	CSM_SETTHUMBSIZE,
+	CSM_GETTHUMBSIZE,
+	CSM_SETGAP,
+	CSM_GETGAP,
+	CSM_SETBKCOLOR,
+	CSM_SETTHUMBCOLOR
+};
+
+#endif
