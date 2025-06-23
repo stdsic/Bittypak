@@ -50,6 +50,11 @@ class PlayerCallback : public IMFPMediaPlayerCallback{
 				break;
 
 			case MFP_EVENT_TYPE_STOP:
+				if(pPlayer){
+					pPlayer->Shutdown();
+					pPlayer->Release();
+					pPlayer = NULL;
+				}
 				break;
 
 			case MFP_EVENT_TYPE_POSITION_SET:
@@ -143,7 +148,9 @@ void Cleanup();
 void OpenFiles(HWND hWnd, HWND hListView);
 void AppendFile(HWND hListView, WCHAR* Path);
 void PlaySelectedItem(HWND hWnd, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer **pPlayer, BOOL bPaused = FALSE);
-void PlayNextOrPrev(HWND hWnd, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bNext);
+void PlayNextOrPrev(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, IMFPMediaPlayer* pPlayer, BOOL bNext);
+BOOL SystemAudioCapture(const WCHAR* FileName, int Seconds = 5);
+void WriteWavHeader(HANDLE hFile, DWORD DataSize, WORD Channels, DWORD SampleRate, WORD BitsPerSample);
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
 int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int nCmdShow){
@@ -206,7 +213,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 	static BOOL bFirst = TRUE;
 	static HBITMAP hBitmap;
 	static WCHAR TimeLine[64];
-	static int MinWidth = (BTN_COUNT * 2) * ButtonWidth + (BTN_COUNT + 2) * Padding;
+	static int MinWidth = BTN_COUNT * ButtonWidth + BTN_COUNT * Padding;
 	static int MinHeight = (rcClose.bottom + ButtonHeight + Padding * 2) * 2;
 
 	HDC hdc, hMemDC;
@@ -242,11 +249,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 				hBtns[0] = CreateWindow(BTN_CLASS_NAME, NULL, WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | PUSH, 0, 0, 0, 0, hWnd, (HMENU)(INT_PTR)(IDC_BTNFIRST), GetModuleHandle(NULL), NULL);
 				hBtns[1] = CreateWindow(BTN_CLASS_NAME, NULL, WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | CHECK, 0, 0, 0, 0, hWnd, (HMENU)(INT_PTR)(IDC_BTNFIRST + 1), GetModuleHandle(NULL), NULL);
 
-				for (int i = 2; i < BTN_COUNT - 1; i++) {
+				for (int i = 2; i < 5; i++) {
 					hBtns[i] = CreateWindow(BTN_CLASS_NAME, NULL, WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | PUSH, 0, 0, 0, 0, hWnd, (HMENU)(INT_PTR)(IDC_BTNFIRST + i), GetModuleHandle(NULL), NULL);
 				}
 
-				hBtns[BTN_COUNT - 1] = CreateWindow(BTN_CLASS_NAME, NULL, WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | CHECK, 0, 0, 0, 0, hWnd, (HMENU)(INT_PTR)(IDC_BTNFIRST + BTN_COUNT - 1), GetModuleHandle(NULL), NULL);
+				hBtns[5] = CreateWindow(BTN_CLASS_NAME, NULL, WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | CHECK, 0, 0, 0, 0, hWnd, (HMENU)(INT_PTR)(IDC_BTNFIRST + 5), GetModuleHandle(NULL), NULL);
+				hBtns[6] = CreateWindow(BTN_CLASS_NAME, NULL, WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | CHECK, 0, 0, 0, 0, hWnd, (HMENU)(INT_PTR)(IDC_BTNFIRST + 6), GetModuleHandle(NULL), NULL);
+				hBtns[7] = CreateWindow(BTN_CLASS_NAME, NULL, WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | CHECK, 0, 0, 0, 0, hWnd, (HMENU)(INT_PTR)(IDC_BTNFIRST + 7), GetModuleHandle(NULL), NULL);
 
 				hProgress = CreateWindow(SCROLLBAR_CLASS_NAME, NULL, WS_CHILD | WS_VISIBLE | CSS_HORZ, 0,0,0,0, hWnd, (HMENU)(INT_PTR)IDC_SCRLFIRST, GetModuleHandle(NULL), NULL);
 				hVolume = CreateWindow(SCROLLBAR_CLASS_NAME, NULL, WS_CHILD | WS_VISIBLE | CSS_HORZ, 0, 0, 0, 0, hWnd, (HMENU)(INT_PTR)IDC_SCRLFIRST + 1, GetModuleHandle(NULL), NULL);
@@ -286,34 +295,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 		case WM_COMMAND:
 			switch (LOWORD(wParam)){
 				case IDC_BTNFIRST:
-					if(pPlayer == NULL){ return 0; }
 					if(HIWORD(wParam) == PRESSED){
-						MFP_MEDIAPLAYER_STATE State;
-						HRESULT hr = pPlayer->GetState(&State);
-
-						if(SUCCEEDED(hr)){
-							switch(State){
-								case MFP_MEDIAPLAYER_STATE_EMPTY:
-								case MFP_MEDIAPLAYER_STATE_STOPPED:
-								// case MFP_MEDIAPLAYER_STATE_PAUSED:
-									return 0;
-							}
-						}
-
-						for (int i = 1; i < 3; i++) {
-							SendMessage(hBtns[i], CBM_SETSTATE, UP, (LPARAM)0);
-							SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + i, RELEASED), (LPARAM)hBtns[i]);
-						}
-
 						if(pPlayer){
-							pPlayer->Stop();
-							pPlayer->Shutdown();
-							pPlayer->Release();
-							pPlayer = NULL;
+							MFP_MEDIAPLAYER_STATE State;
+							HRESULT hr = pPlayer->GetState(&State);
+							if(State == MFP_MEDIAPLAYER_STATE_PLAYING || State == MFP_MEDIAPLAYER_STATE_PAUSED){
+								pPlayer->Stop();
+							}
 						}
 
 						wcscpy(TimeLine, TimeSample);
 						SendMessage(hProgress, CSM_SETPOSITION, (WPARAM)0, (LPARAM)0);
+						SendMessage(hBtns[1], CBM_SETSTATE, UP, (LPARAM)0);
 					}
 					InvalidateRect(hWnd, NULL, FALSE);
 					break;
@@ -330,24 +323,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 						}
 						SetTimer(hWnd, 1, 50, NULL);
 						PlaySelectedItem(hWnd, hListView, hVolume, pCallback, &pPlayer);
-					}else{
+					}
+
+					if(HIWORD(wParam) == RELEASED){
 						PlaySelectedItem(hWnd, hListView, hVolume, pCallback, &pPlayer, TRUE);
 					}
 					break;
 
 				case IDC_BTNFIRST + 2:
 					if(HIWORD(wParam) == PRESSED){
-						PlayNextOrPrev(hWnd, hListView, hVolume, pCallback, &pPlayer, FALSE);
-						SendMessage(hBtns[1], CBM_SETSTATE, DOWN, (LPARAM)0);
-						SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 1, PRESSED), (LPARAM)hBtns[1]);
+						PlayNextOrPrev(hWnd, hBtns[1], hListView, hVolume, pPlayer, FALSE);
 					}
 					break;
 
 				case IDC_BTNFIRST + 3:
 					if(HIWORD(wParam) == PRESSED){
-						PlayNextOrPrev(hWnd, hListView, hVolume, pCallback, &pPlayer, TRUE);
-						SendMessage(hBtns[1], CBM_SETSTATE, DOWN, (LPARAM)0);
-						SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 1, PRESSED), (LPARAM)hBtns[1]);
+						PlayNextOrPrev(hWnd, hBtns[1], hListView, hVolume, pPlayer, TRUE);
 					}
 					break;
 
@@ -358,50 +349,59 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 					break;
 
 				case IDC_BTNFIRST + 5:
-					GetWindowRect(hWnd, &wrt);
+					{
+						GetWindowRect(hWnd, &wrt);
 
-					int CurrentWidth = wrt.right - wrt.left;
-					int CurrentHeight = wrt.bottom - wrt.top;
-					int ExtendedHeight = MaxCount * ListBoxItemHeight;
-					int MaxAnimationScene = 8;
-					int Scene = ExtendedHeight / MaxAnimationScene;
+						int CurrentWidth = wrt.right - wrt.left;
+						int CurrentHeight = wrt.bottom - wrt.top;
+						int ExtendedHeight = MaxCount * ListBoxItemHeight;
+						int MaxAnimationScene = 8;
+						int Scene = ExtendedHeight / MaxAnimationScene;
 
-					if(HIWORD(wParam) == RELEASED){
-						SetWindowPos(hComboBox, NULL, 0, 0, 0, 0, SWP_NOZORDER | SWP_NOSIZE | SWP_NOMOVE | SWP_HIDEWINDOW);
-						SetWindowPos(hListView, NULL, 0, 0, 0, 0, SWP_NOZORDER | SWP_NOSIZE | SWP_NOMOVE | SWP_HIDEWINDOW);
-					}
-
-					// 애니메이션 효과를 위해 상수값 사용
-					for(int i = 1; i <= MaxAnimationScene; i++){
-						if(HIWORD(wParam) == PRESSED){
-							SetWindowPos(hWnd, NULL, 0, 0, CurrentWidth, CurrentHeight + Scene * i, SWP_NOMOVE | SWP_NOZORDER);
+						if(HIWORD(wParam) == RELEASED){
+							SetWindowPos(hComboBox, NULL, 0, 0, 0, 0, SWP_NOZORDER | SWP_NOSIZE | SWP_NOMOVE | SWP_HIDEWINDOW);
+							SetWindowPos(hListView, NULL, 0, 0, 0, 0, SWP_NOZORDER | SWP_NOSIZE | SWP_NOMOVE | SWP_HIDEWINDOW);
 						}
-						else if(HIWORD(wParam) == RELEASED){
-							if(CurrentWidth >= MinWidth && (CurrentHeight - Scene * i) >= MinHeight){
-								SetWindowPos(hWnd, NULL, 0, 0, CurrentWidth, CurrentHeight - Scene * i, SWP_NOMOVE | SWP_NOZORDER);
+
+						// 애니메이션 효과를 위해 상수값 사용
+						for(int i = 1; i <= MaxAnimationScene; i++){
+							if(HIWORD(wParam) == PRESSED){
+								SetWindowPos(hWnd, NULL, 0, 0, CurrentWidth, CurrentHeight + Scene * i, SWP_NOMOVE | SWP_NOZORDER);
 							}
+							else if(HIWORD(wParam) == RELEASED){
+								if(CurrentWidth >= MinWidth && (CurrentHeight - Scene * i) >= MinHeight){
+									SetWindowPos(hWnd, NULL, 0, 0, CurrentWidth, CurrentHeight - Scene * i, SWP_NOMOVE | SWP_NOZORDER);
+								}
+							}
+
+							InvalidateRect(hWnd, NULL, FALSE);
+							Sleep(max(10, min(MaxAnimationScene * 10, (MaxAnimationScene - (i + 2)) * 10)));
 						}
 
-						InvalidateRect(hWnd, NULL, FALSE);
-						Sleep(max(10, min(MaxAnimationScene * 10, (MaxAnimationScene - (i + 2)) * 10)));
+						if(hBitmap != NULL){
+							DeleteObject(hBitmap);
+							hBitmap = NULL;
+						}
+
+						if(HIWORD(wParam) == PRESSED){
+							GetClientRect(hWnd, &crt);
+							GetWindowRect(hBtns[0], &wrt);
+							ScreenToClient(hWnd, (LPPOINT)&wrt);
+							ScreenToClient(hWnd, (LPPOINT)&wrt + 1);
+
+							SetWindowPos(hComboBox, NULL, rtText.right + Padding, rtText.top, crt.right - (rtText.right + Padding * 2), rtText.bottom - rtText.top, SWP_NOZORDER | SWP_SHOWWINDOW);
+							SetWindowPos(hListView, NULL, rtText.left, rtText.bottom + Padding, rtText.left + (rtText.right - rtText.left) + crt.right - (rtText.right + Padding * 2), crt.bottom - (wrt.top + ButtonHeight + Padding * 2 + (rtText.bottom - rtText.top)), SWP_NOZORDER | SWP_SHOWWINDOW);
+						}
+
+						GetWindowRect(hWnd, &ewrt);
 					}
+					break;
 
-					if(hBitmap != NULL){
-						DeleteObject(hBitmap);
-						hBitmap = NULL;
-					}
+				case IDC_BTNFIRST + 6:
+					SystemAudioCapture(L"AudioCaptureTest.wav");
+					break;
 
-					if(HIWORD(wParam) == PRESSED){
-						GetClientRect(hWnd, &crt);
-						GetWindowRect(hBtns[0], &wrt);
-						ScreenToClient(hWnd, (LPPOINT)&wrt);
-						ScreenToClient(hWnd, (LPPOINT)&wrt + 1);
-
-						SetWindowPos(hComboBox, NULL, rtText.right + Padding, rtText.top, crt.right - (rtText.right + Padding * 2), rtText.bottom - rtText.top, SWP_NOZORDER | SWP_SHOWWINDOW);
-						SetWindowPos(hListView, NULL, rtText.left, rtText.bottom + Padding, rtText.left + (rtText.right - rtText.left) + crt.right - (rtText.right + Padding * 2), crt.bottom - (wrt.top + ButtonHeight + Padding * 2 + (rtText.bottom - rtText.top)), SWP_NOZORDER | SWP_SHOWWINDOW);
-					}
-
-					GetWindowRect(hWnd, &ewrt);
+				case IDC_BTNFIRST + 7:
 					break;
 			}
 			return 0;
@@ -411,8 +411,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 				POINT Mouse = { LOWORD(lParam), HIWORD(lParam) };
 				GetWindowRect(hWnd, &wrt);
 
-				if(SendMessage(hBtns[BTN_COUNT - 1], CBM_GETSTATE, 0, 0) != DOWN){
-					SendMessage(hBtns[BTN_COUNT - 1], CBM_SETSTATE, NORMAL, (LPARAM)0);
+				if(SendMessage(hBtns[5], CBM_GETSTATE, 0, 0) != DOWN){
+					SendMessage(hBtns[5], CBM_SETSTATE, NORMAL, (LPARAM)0);
 				}
 
 				if(Mouse.x >= wrt.left && Mouse.x < wrt.left + BORDER && Mouse.y >= wrt.top + EDGE && Mouse.y < wrt.bottom - EDGE){
@@ -514,7 +514,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 				ScreenToClient(hWnd, (LPPOINT)&wrt);
 				ScreenToClient(hWnd, (LPPOINT)&wrt + 1);
 
-				tag_ButtonState CurrentState = (tag_ButtonState)SendMessage(hBtns[BTN_COUNT - 1], CBM_GETSTATE, 0, 0);
+				tag_ButtonState CurrentState = (tag_ButtonState)SendMessage(hBtns[5], CBM_GETSTATE, 0, 0);
 
 				if(CurrentState == DOWN || CurrentState == UP){
 					SetWindowPos(hProgress, NULL, wrt.left, wrt.top - (ButtonHeight + Padding), crt.right - Padding * 2, ButtonHeight, SWP_NOZORDER);
@@ -540,11 +540,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
 		case WM_GETMINMAXINFO:
 			{
-				tag_ButtonState CurrentState = (tag_ButtonState)SendMessage(hBtns[BTN_COUNT - 1], CBM_GETSTATE, 0, 0);
+				tag_ButtonState CurrentState = (tag_ButtonState)SendMessage(hBtns[5], CBM_GETSTATE, 0, 0);
 
 				LPMINMAXINFO lpmmi = (LPMINMAXINFO)lParam;
 				if(CurrentState != DOWN){
-					MinWidth = lpmmi->ptMinTrackSize.x = (BTN_COUNT + 2) * ButtonWidth + (BTN_COUNT + 2) * Padding;
+					MinWidth = lpmmi->ptMinTrackSize.x = BTN_COUNT * ButtonWidth + (BTN_COUNT + 2) * Padding;
 					MinHeight = lpmmi->ptMinTrackSize.y = (rcClose.bottom + ButtonHeight + Padding * 2) * 2;
 				}
 				else{
@@ -608,7 +608,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 				rtText.right = rtText.left + TextSize.cx;
 				rtText.bottom = rtText.top + TextSize.cy;
 
-				if(SendMessage(hBtns[BTN_COUNT - 1], CBM_GETSTATE, 0, 0) == DOWN){
+				if(SendMessage(hBtns[5], CBM_GETSTATE, 0, 0) == DOWN){
 					DrawText(hMemDC, Description, -1, &rtText, DT_BOTTOM | DT_SINGLELINE | DT_CENTER);
 				}
 
@@ -628,6 +628,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 					case NM_DBLCLK:
 						lpnia = (LPNMITEMACTIVATE)lParam;
 						if(lpnia->iItem != -1){
+							if(pPlayer){
+								pPlayer->Stop();
+							}
 							SendMessage(hBtns[1], CBM_SETSTATE, DOWN, (LPARAM)0);
 							SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 1, PRESSED), (LPARAM)hBtns[1]);
 						}
@@ -645,7 +648,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 			return 0;
 
 		case WM_PLAYNEXT:
-			PlayNextOrPrev(hWnd, hListView, hVolume, pCallback, &pPlayer, TRUE);
+			PlayNextOrPrev(hWnd, hBtns[1], hListView, hVolume, pPlayer, TRUE);
 			return 0;
 
 		case WM_TIMER:
@@ -688,7 +691,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
 		case WM_HSCROLL:
 			if(pPlayer == NULL){ return 0; }
-
 			switch(LOWORD(wParam)){
 				case SB_THUMBTRACK:
 				case SB_THUMBPOSITION:
@@ -740,10 +742,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
 		case WM_NEWPOSITION:
 			if(pPlayer){
-				pPlayer->Play();
+				enum tag_ButtonState State = (enum tag_ButtonState)SendMessage(hBtns[1], CBM_GETSTATE, 0,0);
+				if(State == DOWN){
+					pPlayer->Play();
+				}
 			}
 			return 0;
-			
+
 		case WM_DESTROY:
 			KillTimer(hWnd, 1);
 			if(pPlayer){ 
@@ -837,6 +842,7 @@ void AppendFile(HWND hListView, WCHAR* Path) {
 void PlaySelectedItem(HWND hWnd, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer **pPlayer, BOOL bPaused){
 	if(pCallback == NULL){ return ; }
 
+	static WCHAR LastPath[MAX_PATH] = L"";
 	int nCount = ListView_GetItemCount(hListView);
 	int SelectItem = ListView_GetNextItem(hListView, -1, LVNI_SELECTED);
 	if(SelectItem == -1 && nCount == 0){ return; }
@@ -850,7 +856,6 @@ void PlaySelectedItem(HWND hWnd, HWND hListView, HWND hVolume, PlayerCallback* p
 	WCHAR* Path = (WCHAR*)li.lParam;
 	if(!Path){ return; }
 
-	static WCHAR LastPath[MAX_PATH] = L"";
 	if(*pPlayer){
 		MFP_MEDIAPLAYER_STATE State;
 		(*pPlayer)->GetState(&State);
@@ -863,7 +868,7 @@ void PlaySelectedItem(HWND hWnd, HWND hListView, HWND hVolume, PlayerCallback* p
 			}
 			return;
 		}
-
+			
 		// 다른 파일이면 기존 플레이어 정리
 		(*pPlayer)->Shutdown();
 		(*pPlayer)->Release();
@@ -881,7 +886,17 @@ void PlaySelectedItem(HWND hWnd, HWND hListView, HWND hVolume, PlayerCallback* p
 	}
 }
 
-void PlayNextOrPrev(HWND hWnd, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bNext){
+// void PlayNextOrPrev(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bNext){
+void PlayNextOrPrev(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, IMFPMediaPlayer* pPlayer, BOOL bNext){
+	if(pPlayer){ 
+		MFP_MEDIAPLAYER_STATE State;
+		HRESULT hr = pPlayer->GetState(&State);
+		if(State == MFP_MEDIAPLAYER_STATE_PLAYING || State == MFP_MEDIAPLAYER_STATE_PAUSED){
+			pPlayer->Stop();
+		}
+	}
+	SendMessage(hBtn, CBM_SETSTATE, UP, (LPARAM)0);
+
 	int nCount = ListView_GetItemCount(hListView);
 	int SelectItem = ListView_GetNextItem(hListView, -1, LVNI_SELECTED);
 
@@ -906,6 +921,109 @@ void PlayNextOrPrev(HWND hWnd, HWND hListView, HWND hVolume, PlayerCallback* pCa
 
 		ListView_SetItemState(hListView, -1, 0, LVIS_SELECTED | LVIS_FOCUSED);
 		ListView_SetItemState(hListView, SelectItem, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
-		PlaySelectedItem(hWnd, hListView, hVolume, pCallback, pPlayer);
+		SendMessage(hBtn, CBM_SETSTATE, DOWN, (LPARAM)0);
+		SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 1, PRESSED), (LPARAM)hBtn);
 	}
 }
+
+BOOL SystemAudioCapture(const WCHAR* FileName, int Seconds){
+	WAVEFORMATEX* pwfx = NULL;
+	IMMDevice* pDevice = NULL;
+	IAudioClient* pAudioClient = NULL;
+	IMMDeviceEnumerator* pEnumerator = NULL;
+	IAudioCaptureClient* pCaptureClient = NULL;
+
+	HANDLE hFile = INVALID_HANDLE_VALUE;
+	BYTE* pData;
+	DWORD dwFlags;
+	UINT32 PacketLength = 0;
+	DWORD TotalBytesWritten = 0;
+
+	BOOL Success = FALSE;
+
+	do{
+		// 기본 렌더러 가져옴(스피커)
+		if(FAILED(CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void**)&pEnumerator))){ break; }
+		if(FAILED(pEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &pDevice))){ break; }
+
+		// 기본 장치에서 AudioClient 인터페이스 활성화
+		if(FAILED(pDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, NULL, (void**)&pAudioClient))){ break; }
+		// 스테레오 믹스 오디오 포맷 가져옴
+		if(FAILED(pAudioClient->GetMixFormat(&pwfx))){ break; }
+
+		// 루프백 + 캡처 초기화
+		if(FAILED(pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, 0, 0, pwfx, NULL))){ break; }
+
+		// 오디오 캡처 클라이언트 인터페이스 가져옴
+		if(FAILED(pAudioClient->GetService(__uuidof(IAudioCaptureClient), (void**)&pCaptureClient))){ break; }
+
+		// 캡처 시작
+		if(FAILED(pAudioClient->Start())){ break; }
+
+		// WAV 헤더 비워두고 샘플 데이터 작성
+		hFile = CreateFileW(FileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		if(hFile == INVALID_HANDLE_VALUE){ break; }
+
+		DWORD dwDummy = 0;
+		WriteFile(hFile, &dwDummy, 44/* wav header */, &dwDummy, NULL);
+
+		DWORD StartTime = GetTickCount();
+		while(GetTickCount() - StartTime < (DWORD)(Seconds * 1000)){
+			pCaptureClient->GetNextPacketSize(&PacketLength);
+
+			while(PacketLength > 0){
+				UINT32 NumFrames;
+				pCaptureClient->GetBuffer(&pData, &NumFrames, &dwFlags, NULL, NULL);
+
+				DWORD Written = 0;
+				DWORD BytesToWrite = NumFrames * pwfx->nBlockAlign;
+				WriteFile(hFile, pData, BytesToWrite, &Written, NULL);
+				TotalBytesWritten += Written;
+
+				pCaptureClient->ReleaseBuffer(NumFrames);
+				pCaptureClient->GetNextPacketSize(&PacketLength);
+			}
+			Sleep(10);
+		}
+		pAudioClient->Stop();
+
+		SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
+		WriteWavHeader(hFile, TotalBytesWritten, pwfx->nChannels, pwfx->nSamplesPerSec, pwfx->wBitsPerSample);
+
+		Success = TRUE;
+	}while(FALSE);
+
+	if(hFile != INVALID_HANDLE_VALUE){ CloseHandle(hFile); }
+	if(pwfx){ CoTaskMemFree(pwfx); }
+	if(pCaptureClient){ pCaptureClient->Release(); }
+	if(pAudioClient){ pAudioClient->Release(); }
+	if(pDevice){ pDevice->Release(); }
+	if(pEnumerator){ pEnumerator->Release(); }
+
+	return Success;
+}
+
+void WriteWavHeader(HANDLE hFile, DWORD DataSize, WORD Channels, DWORD SampleRate, WORD BitsPerSample){
+	WAVHEADER Header;
+
+	memcpy(Header.ChunkID, "RIFF", 4);
+	Header.ChunkSize = 36 + DataSize;
+	memcpy(Header.Format, "WAVE", 4);
+
+	memcpy(Header.Subchunk1ID, "fmt ", 4);
+	Header.Subchunk1Size = 16;
+	Header.AudioFormat = 1;
+	Header.NumChannels = Channels;
+	Header.SampleRate = SampleRate;
+	Header.ByteRate = SampleRate * Channels * BitsPerSample / 8;
+	Header.BlockAlign = Channels * BitsPerSample / 8;
+	Header.BitsPerSample = BitsPerSample;
+
+	memcpy(Header.Subchunk2ID, "data", 4);
+	Header.Subchunk2Size = DataSize;
+
+	DWORD Written = 0;
+	SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
+	WriteFile(hFile, &Header, sizeof(WAVHEADER), &Written, NULL);
+}
+
