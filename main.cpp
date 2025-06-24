@@ -28,8 +28,8 @@ HRESULT Initialize();
 void Cleanup();
 void OpenFiles(HWND hWnd, HWND hListView);
 void AppendFile(HWND hListView, WCHAR* Path);
-BOOL PlaySelectedItem(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bPaused = FALSE);
-BOOL PlayNextOrPrev(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bNext);
+void PlaySelectedItem(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer **pPlayer, BOOL bPaused = FALSE);
+void PlayNextOrPrev(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bNext);
 BOOL WriteWavHeader(HANDLE hFile, DWORD DataSize, WORD Channels, DWORD SampleRate, WORD BitsPerSample);
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
@@ -71,11 +71,13 @@ class PlayerCallback : public IMFPMediaPlayerCallback{
 				break;
 
 			case MFP_EVENT_TYPE_STOP:
+				/*
 				if(pPlayer){
 					pPlayer->Shutdown();
 					pPlayer->Release();
 					pPlayer = NULL;
 				}
+				*/
 				break;
 
 			case MFP_EVENT_TYPE_POSITION_SET:
@@ -308,11 +310,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 			switch (LOWORD(wParam)){
 				case IDC_BTNFIRST:
 					if(HIWORD(wParam) == PRESSED){
+						KillTimer(hWnd, 1);
 						if(pPlayer){
 							MFP_MEDIAPLAYER_STATE State;
 							HRESULT hr = pPlayer->GetState(&State);
 							if(State == MFP_MEDIAPLAYER_STATE_PLAYING || State == MFP_MEDIAPLAYER_STATE_PAUSED){
 								pPlayer->Stop();
+								pPlayer->Shutdown();
+								pPlayer->Release();
+								pPlayer = NULL;
 							}
 						}
 
@@ -327,8 +333,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 					// 리스트 뷰 활용 -> 선택한 항목 문자열 불러온 후 파일 재생
 					KillTimer(hWnd, 1);
 					if(HIWORD(wParam) == PRESSED){
-						if(PlaySelectedItem(hWnd, hBtns[1], hListView, hVolume, pCallback, &pPlayer)){
-							SetTimer(hWnd, 1, 50, NULL);
+						PlaySelectedItem(hWnd, hBtns[1], hListView, hVolume, pCallback, &pPlayer);
+						if(pPlayer){
+							MFP_MEDIAPLAYER_STATE State;
+							pPlayer->GetState(&State);
+							if(State == MFP_MEDIAPLAYER_STATE_PLAYING){
+								SetTimer(hWnd, 1, 50, NULL);
+							}
+						}else{
+							SendMessage(hBtns[1], CBM_SETSTATE, UP, (LPARAM)0);
 						}
 					}else{
 						PlaySelectedItem(hWnd, hBtns[1], hListView, hVolume, pCallback, &pPlayer, TRUE);
@@ -337,13 +350,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
 				case IDC_BTNFIRST + 2:
 					if(HIWORD(wParam) == PRESSED){
+						KillTimer(hWnd, 1);
 						PlayNextOrPrev(hWnd, hBtns[1], hListView, hVolume, pCallback, &pPlayer, FALSE);
+						if(pPlayer){
+							SetTimer(hWnd, 1, 50, NULL);
+						}
 					}
 					break;
 
 				case IDC_BTNFIRST + 3:
 					if(HIWORD(wParam) == PRESSED){
+						KillTimer(hWnd, 1);
 						PlayNextOrPrev(hWnd, hBtns[1], hListView, hVolume, pCallback, &pPlayer, TRUE);
+						if(pPlayer){
+							SetTimer(hWnd, 1, 50, NULL);
+						}
 					}
 					break;
 
@@ -644,6 +665,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 						if(lpnia->iItem != -1){
 							if(pPlayer){
 								pPlayer->Stop();
+								pPlayer->Shutdown();
+								pPlayer->Release();
+								pPlayer = NULL;
 							}
 							SendMessage(hBtns[1], CBM_SETSTATE, DOWN, (LPARAM)0);
 							SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 1, PRESSED), (LPARAM)hBtns[1]);
@@ -760,8 +784,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
 		case WM_NEWPOSITION:
 			if(pPlayer){
-				enum tag_ButtonState State = (enum tag_ButtonState)SendMessage(hBtns[1], CBM_GETSTATE, 0,0);
-				pPlayer->Play();
+				MFP_MEDIAPLAYER_STATE State;
+				HRESULT hr = pPlayer->GetState(&State);
+				enum tag_ButtonState ButtonState = (enum tag_ButtonState)SendMessage(hBtns[1], CBM_GETSTATE, 0,0);
+				if(State == MFP_MEDIAPLAYER_STATE_PLAYING && ButtonState == DOWN){
+					pPlayer->Play();
+				}
 			}
 			return 0;
 
@@ -858,72 +886,56 @@ void AppendFile(HWND hListView, WCHAR* Path) {
 	ListView_InsertItem(hListView, &LI);
 }
 
-BOOL PlaySelectedItem(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bPaused){
-	if(pCallback == NULL){ return FALSE; }
+void PlaySelectedItem(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bPaused){
+	if(pCallback == NULL){ return ; }
 
-	static WCHAR LastPath[MAX_PATH] = L"";
 	int nCount = ListView_GetItemCount(hListView);
 	int SelectItem = ListView_GetNextItem(hListView, -1, LVNI_SELECTED);
-	if(SelectItem == -1 && nCount == 0){
-		SendMessage(hBtn, CBM_SETSTATE, UP, (LPARAM)0);
-		return FALSE;
-	}
+	if(SelectItem == -1 && nCount == 0){ return; }
 	if(SelectItem == -1 && nCount != 0){ SelectItem = 0; }
 
+	static WCHAR LastPath[MAX_PATH] = L"FullPath";
 	LVITEM li = { 0 };
 	li.mask = LVIF_PARAM;
 	li.iItem = SelectItem;
 	ListView_GetItem(hListView, &li);
-
 	WCHAR* Path = (WCHAR*)li.lParam;
-	if(!Path || wcslen(Path) == 0){ return FALSE; }
+	if(!Path){ return; }
 
-	BOOL Same = (wcscmp(Path, LastPath) == 0);
-
-	if(*pPlayer && Same){
-		if(bPaused){
-			(*pPlayer)->Pause();
-		}else{
-			(*pPlayer)->Play();
-		}
-	}else{
-		if(*pPlayer){
-			(*pPlayer)->Shutdown();
-			(*pPlayer)->Release();
-			*pPlayer = NULL;
-		}
-
-		HRESULT hr = MFPCreateMediaPlayer(Path, FALSE, 0, pCallback, hWnd, pPlayer);
-		if (SUCCEEDED(hr)) {
-			float vol = (float)SendMessage(hVolume, CSM_GETPOSITION, 0, 0) / 255.f;
-			(*pPlayer)->SetVolume(vol);
-			(*pPlayer)->Play();
-			wcscpy_s(LastPath, Path);
-			SendMessage(hBtn, CBM_SETSTATE, DOWN, (LPARAM)0);
-		} else {
-			SendMessage(hBtn, CBM_SETSTATE, UP, 0);
-			*pPlayer = NULL; // 안전망
-			return FALSE;
-		}
-	}
-
-	return TRUE;
-}
-
-BOOL PlayNextOrPrev(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bNext){
 	if(*pPlayer){
-		(*pPlayer)->Stop();
+		MFP_MEDIAPLAYER_STATE State;
+		(*pPlayer)->GetState(&State);
+
+		if(wcscmp(Path, LastPath) == 0){
+			if(State == MFP_MEDIAPLAYER_STATE_PLAYING && bPaused == TRUE){
+				(*pPlayer)->Pause();
+			}else if(State == MFP_MEDIAPLAYER_STATE_PAUSED && bPaused == FALSE){
+				(*pPlayer)->Play();
+			}
+			return;
+		}
+
+		// 다른 파일이면 기존 플레이어 정리
 		(*pPlayer)->Shutdown();
 		(*pPlayer)->Release();
 		*pPlayer = NULL;
-		SendMessage(hBtn, CBM_SETSTATE, UP, (LPARAM)0);
 	}
 
-	int nCount = ListView_GetItemCount(hListView);
-	if(nCount == 0){ return FALSE; }
+	if(SUCCEEDED(MFPCreateMediaPlayer(Path, FALSE, 0, pCallback, hWnd, pPlayer))){
+		pCallback->SetPlayer(*pPlayer);
 
+		int CurrentPosition = SendMessage(hVolume, CSM_GETPOSITION, 0,0);
+		float fUserVolume = (float)CurrentPosition / 255.f;
+		(*pPlayer)->SetVolume(fUserVolume);
+		(*pPlayer)->Play();
+		wcscpy_s(LastPath, Path);
+	}
+}
+
+void PlayNextOrPrev(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bNext){
+	int nCount = ListView_GetItemCount(hListView);
 	int SelectItem = ListView_GetNextItem(hListView, -1, LVNI_SELECTED);
-	if(SelectItem == -1){ SelectItem = 0; }
+	if(SelectItem == -1 && nCount != 0){ SelectItem = 0; }
 
 	if(SelectItem != -1){
 		if(bNext){
@@ -935,10 +947,8 @@ BOOL PlayNextOrPrev(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCa
 		ListView_SetItemState(hListView, -1, 0, LVIS_SELECTED | LVIS_FOCUSED);
 		ListView_SetItemState(hListView, SelectItem, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
 		SendMessage(hBtn, CBM_SETSTATE, DOWN, (LPARAM)0);
-		PlaySelectedItem(hWnd, hBtn, hListView, hVolume, pCallback, pPlayer, FALSE);
+		PlaySelectedItem(hWnd, hBtn, hListView, hVolume, pCallback, pPlayer);
 	}
-
-	return TRUE;
 }
 
 DWORD WINAPI RecordThread(LPVOID lParam){
