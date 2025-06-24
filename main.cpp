@@ -21,8 +21,10 @@
 
 class PlayerCallback;
 
-HANDLE hStopEvent     = NULL;
+HANDLE hRecordStopEvent = NULL;
+HANDLE hSpectrumStopEvent = NULL;
 DWORD WINAPI RecordThread(LPVOID lParam);
+DWORD WINAPI SpectrumThread(LPVOID lParam);
 
 HRESULT Initialize();
 void Cleanup();
@@ -31,6 +33,11 @@ void AppendFile(HWND hListView, WCHAR* Path);
 void PlaySelectedItem(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer **pPlayer, BOOL bPaused = FALSE);
 void PlayNextOrPrev(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bNext);
 BOOL WriteWavHeader(HANDLE hFile, DWORD DataSize, WORD Channels, DWORD SampleRate, WORD BitsPerSample);
+
+#define FFT_SIZE 1024
+#define BINS 160
+static volatile double Spectrum[BINS];
+static volatile BOOL bSpectrumReady = FALSE;
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
 
@@ -218,14 +225,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 	static BOOL bFirst = TRUE;
 	static HBITMAP hBitmap;
 	static WCHAR TimeLine[64];
-	static int MinWidth = BTN_COUNT * ButtonWidth + BTN_COUNT * Padding;
-	static int MinHeight = (rcClose.bottom + ButtonHeight + Padding * 2) * 2;
+	static int MinWidth;	// BTN_COUNT * ButtonWidth + BTN_COUNT * Padding;
+	static int MinHeight;	// (rcClose.bottom + ButtonHeight + Padding * 2) * 2;
 
 	HDC hdc, hMemDC;
 	PAINTSTRUCT ps;
 	RECT crt, srt, wrt, trt;
 	HGDIOBJ hOld;
 	BITMAP bmp;
+	HPEN hPen, hOldPen;
 
 	LVCOLUMN COL;
 
@@ -242,7 +250,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 	WCHAR Debug[256];
 
 	static HANDLE hRecordThread  = NULL;
-	static DWORD dwThreadID;
+	static HANDLE hSpectrumThread  = NULL;
+	static DWORD dwThreadID[2];
+
+	static RECT rcSpectrum;
 
 	switch (iMessage){
 		case WM_CREATE:
@@ -406,18 +417,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
 				case IDC_BTNFIRST + 6:
 					if(HIWORD(wParam) == PRESSED){
-						hStopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-						hRecordThread = CreateThread(NULL, 0, RecordThread, (LPVOID)NULL, 0, &dwThreadID);
+						hRecordStopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+						hRecordThread = CreateThread(NULL, 0, RecordThread, (LPVOID)NULL, 0, &dwThreadID[0]);
 					}else{
-						SetEvent(hStopEvent);
+						SetEvent(hRecordStopEvent);
 						WaitForSingleObject(hRecordThread, INFINITE);
 						CloseHandle(hRecordThread);
-						CloseHandle(hStopEvent);
-						hRecordThread = hStopEvent = NULL;
+						CloseHandle(hRecordStopEvent);
+						hRecordThread = hRecordStopEvent = NULL;
 					}
 					break;
 
 				case IDC_BTNFIRST + 7:
+					if(HIWORD(wParam) == PRESSED){
+						hSpectrumStopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+						hSpectrumThread = CreateThread(NULL, 0, SpectrumThread, (LPVOID)NULL, 0, &dwThreadID[1]);
+					}else{
+						bSpectrumReady = FALSE;
+						SetEvent(hSpectrumStopEvent);
+						WaitForSingleObject(hSpectrumThread, INFINITE);
+						CloseHandle(hSpectrumThread);
+						CloseHandle(hSpectrumStopEvent);
+						hSpectrumThread = hSpectrumStopEvent = NULL;
+						InvalidateRect(hWnd, NULL, FALSE);
+					}
 					break;
 			}
 			return 0;
@@ -541,6 +564,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 					SetWindowPos(hVolume, NULL, Padding + ((crt.right - Padding * 2) / 4 * 3), iHeight - (ButtonHeight + Padding) * 3, (crt.right - Padding * 2) / 4, ButtonHeight, SWP_NOZORDER);
 				}
 
+				GetWindowRect(hProgress, &rcSpectrum);
+				ScreenToClient(hWnd, (LPPOINT)&rcSpectrum);
+				ScreenToClient(hWnd, (LPPOINT)&rcSpectrum + 1);
+				SetRect(&rcSpectrum, rcSpectrum.left, rcSpectrum.top - (TimeTextSize.cy + ButtonHeight + Padding * 3), rcSpectrum.right, rcSpectrum.bottom);
+				SetRect(&rcSpectrum, rcSpectrum.left, rcSpectrum.top, rcSpectrum.left + BINS, rcSpectrum.top + ButtonHeight + Padding);
+
 				HDWP hdwp = BeginDeferWindowPos(BTN_COUNT);
 				for(int i = 0; i < BTN_COUNT; i++){
 					if(CurrentState == DOWN || CurrentState == UP){
@@ -561,7 +590,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 				LPMINMAXINFO lpmmi = (LPMINMAXINFO)lParam;
 				if(CurrentState != DOWN){
 					MinWidth = lpmmi->ptMinTrackSize.x = BTN_COUNT * ButtonWidth + (BTN_COUNT + 2) * Padding;
-					MinHeight = lpmmi->ptMinTrackSize.y = (rcClose.bottom + ButtonHeight + Padding * 2) * 2;
+					MinHeight = lpmmi->ptMinTrackSize.y = rcClose.bottom + (ButtonHeight + Padding) * 4;
 				}
 				else{
 					lpmmi->ptMinTrackSize.x = ewrt.right - ewrt.left;
@@ -626,6 +655,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
 				if(SendMessage(hBtns[5], CBM_GETSTATE, 0, 0) == DOWN){
 					DrawText(hMemDC, Description, -1, &rtText, DT_BOTTOM | DT_SINGLELINE | DT_CENTER);
+				}
+
+				if(bSpectrumReady && hBitmap){
+					hPen = CreatePen(PS_SOLID,1,RGB(0,0,255));
+					hOldPen = (HPEN)SelectObject(hMemDC,hPen);
+
+					double Max = 1.0;
+					double Base = log10(Max + 1.0);
+					for(int x = rcSpectrum.left, i = 0; x < (x + BINS) / 2; x++,i++){
+						int Height = rcSpectrum.bottom - rcSpectrum.top;
+						MoveToEx(hMemDC, x, rcSpectrum.bottom, NULL);
+						LineTo(hMemDC, x, (int)(rcSpectrum.bottom - min(Spectrum[i] * Height, Height)));
+					}
+					DeleteObject(SelectObject(hMemDC, hOldPen));
 				}
 
 				GetObject(hBitmap, sizeof(BITMAP), &bmp);
@@ -705,12 +748,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 						PropVariantClear(&PropDuration);
 					}
 					break;
-
-				case 2:
-					{
-
-					}
-					break;
 			}
 			InvalidateRect(hWnd, NULL, FALSE);
 			return 0;
@@ -787,7 +824,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 				pCallback = NULL;
 			}
 			if(hRecordThread){ CloseHandle(hRecordThread); }
-			if(hStopEvent){ CloseHandle(hStopEvent); }
+			if(hSpectrumThread){ CloseHandle(hSpectrumThread); }
+			if(hRecordStopEvent){ CloseHandle(hRecordStopEvent); }
+			if(hSpectrumStopEvent){ CloseHandle(hSpectrumStopEvent); }
 			if(hBitmap){ DeleteObject(hBitmap); }
 			Cleanup();
 			PostQuitMessage(0);
@@ -952,7 +991,7 @@ DWORD WINAPI RecordThread(LPVOID lParam){
 	DWORD TotalBytesWritten = 0;
 
 	HANDLE hCaptureEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-	HANDLE Waits[2] = { hCaptureEvent, hStopEvent };
+	HANDLE Waits[2] = { hCaptureEvent, hRecordStopEvent };
 
 	do{
 		// 기본 렌더러 가져옴(스피커)
@@ -1100,4 +1139,194 @@ BOOL WriteWavHeader(HANDLE hFile, DWORD DataSize, WORD Channels, DWORD SampleRat
 	SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
 	BOOL OK = WriteFile(hFile, &Header, sizeof(Header), &Written, NULL);
 	return OK && Written == sizeof(Header);
+}
+
+DWORD WINAPI SpectrumThread(LPVOID lParam){
+	WCHAR Debug[0x100];
+	HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+
+	WAVEFORMATEX* pwfx = NULL;
+	IMMDevice* pDevice = NULL;
+	IAudioClient* pAudioClient = NULL;
+	IMMDeviceEnumerator* pEnumerator = NULL;
+	IAudioCaptureClient* pCaptureClient = NULL;
+
+	HANDLE hFile = INVALID_HANDLE_VALUE;
+	BYTE* pData;
+	DWORD dwFlags;
+	UINT32 PacketLength = 0;
+	DWORD TotalBytesWritten = 0;
+
+	HANDLE hCaptureEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	HANDLE Waits[2] = { hCaptureEvent, hSpectrumStopEvent };
+
+	do{
+		// 기본 렌더러 가져옴(스피커)
+		hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void**)&pEnumerator);
+		if(FAILED(hr)){
+			wsprintf(Debug, L"CoCreateInstance Failed: 0x%08X", hr);
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+			break;
+		}
+
+		hr = pEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &pDevice);
+		if(FAILED(hr)){
+			wsprintf(Debug, L"DefaultAudioEndpoint Failed: 0x%08X", hr);
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+			break;
+		}
+
+		// 기본 장치에서 AudioClient 인터페이스 활성화
+		hr = pDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, NULL, (void**)&pAudioClient);
+		if(FAILED(hr)){
+			wsprintf(Debug, L"AudioClient Failed: 0x%08X", hr);
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+			break;
+		}
+
+		// 스테레오 믹스 오디오 포맷 가져옴
+		hr = pAudioClient->GetMixFormat(&pwfx);
+		if(FAILED(hr)){
+			wsprintf(Debug, L"GetMixFormat Failed: 0x%08X", hr);
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+			break;
+		}
+
+		// 루프백 및 콜백 사용 캡처 초기화, 이벤트 객체 적용
+		REFERENCE_TIME BufferDuration = 10000000;
+		hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK, BufferDuration, 0, pwfx, NULL);
+		if(FAILED(hr)){
+			wsprintf(Debug, L"AudioClient Initialize Failed: 0x%08X", hr);
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+			break;
+		}
+
+		hr = pAudioClient->SetEventHandle(hCaptureEvent);
+		if(FAILED(hr)){
+			wsprintf(Debug, L"AudioClient SetEventHandle Failed: 0x%08X", hr);
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+			break;
+		}
+
+		// 오디오 캡처 클라이언트 인터페이스 가져옴
+		hr = pAudioClient->GetService(__uuidof(IAudioCaptureClient), (void**)&pCaptureClient);
+		if(FAILED(hr)){
+			wsprintf(Debug, L"AudioClient GetService Failed: 0x%08X", hr);
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+			break;
+		}
+
+		// 캡처 시작
+		hr = pAudioClient->Start();
+		if(FAILED(hr)){
+			wsprintf(Debug, L"pAudioClient Start Failed: 0x%08X", hr);
+			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+			break;
+		}
+
+		// 오디오 입력, 주파수 결과
+		double Input[FFT_SIZE];
+		fftw_complex Output[FFT_SIZE / 2 + 1];
+
+		// 초기화
+		fftw_plan Plan;
+		Plan = fftw_plan_dft_r2c_1d(FFT_SIZE, Input, Output, FFTW_ESTIMATE);
+
+		static int SampleIndex = 0;
+		while(1){
+			DWORD ret = WaitForMultipleObjects(2, Waits, FALSE, INFINITE);
+			if(ret == WAIT_OBJECT_0 + 1 || ret == WAIT_FAILED){
+				break;
+			}
+
+			if(ret == WAIT_OBJECT_0){
+				pCaptureClient->GetNextPacketSize(&PacketLength);
+
+				while(PacketLength > 0){
+					UINT32 NumFrames;
+					pCaptureClient->GetBuffer(&pData, &NumFrames, &dwFlags, NULL, NULL);
+
+					int Offset = 0;
+					while(Offset < NumFrames){
+						int Remaining = FFT_SIZE - SampleIndex;
+						int CopyCount = min(Remaining, NumFrames - Offset);
+						int Channels = pwfx->nChannels;
+
+						// 여기 분기문에서 문제 발생
+						if(pwfx->wBitsPerSample == 16 && pwfx->wFormatTag == WAVE_FORMAT_PCM){
+							short* Samples = (short*)pData;
+							for(int i=0; i<CopyCount; i++){
+								double Sum = 0;
+								for(int j=0; j<Channels; j++){
+									Sum += Samples[(Offset + i) * Channels + j];
+
+								}
+								Input[SampleIndex++] = (Sum / Channels) / 32768.0;
+							}
+						}else if(pwfx->wBitsPerSample == 32 && pwfx->wFormatTag == WAVE_FORMAT_EXTENSIBLE){
+							float* Samples = (float*)pData;
+							for(int i=0; i<CopyCount; i++){
+								double Sum = 0;
+								for(int j=0; j<Channels; j++){
+									Sum += Samples[(Offset + i) * Channels + j];
+								}
+								Input[SampleIndex++] = Sum / Channels;
+							}
+						}else if(pwfx->wBitsPerSample == 32 && pwfx->wFormatTag == WAVE_FORMAT_PCM){
+							int* Samples = (int*)pData;
+							for(int i=0; i<CopyCount; i++){
+								double Sum = 0;
+								for(int j=0; j<Channels; j++){
+									Sum += Samples[(Offset + i) * Channels + j];
+								}
+								Input[SampleIndex++] = (Sum / Channels) / 2147483648.0;
+							}
+						}
+						Offset += CopyCount;
+
+						if(SampleIndex >= FFT_SIZE) {
+							// Input -> Output 푸리에 변환
+							fftw_execute(Plan);
+
+							for(int i = 0; i < BINS; i++){
+								int Start = i * ((FFT_SIZE / 2 + 1) / BINS);
+								int End = (i + 1) * ((FFT_SIZE / 2 + 1) / BINS);
+								if(End > (FFT_SIZE / 2 + 1)){
+									End = (FFT_SIZE / 2 + 1);
+								}
+
+								double Sum = 0;
+								for(int j = Start; j < End; j++){
+									double Real = Output[j][0];
+									double Imagine = Output[j][1];
+									Sum += sqrt(Real * Real + Imagine * Imagine);
+								}
+								// 평균값 계산
+								Spectrum[i] = Sum / (End - Start);
+							}
+							SampleIndex = 0;
+							bSpectrumReady = TRUE;
+						}
+					}
+
+					pCaptureClient->ReleaseBuffer(NumFrames);
+					pCaptureClient->GetNextPacketSize(&PacketLength);
+				}
+			}
+		}
+
+		pAudioClient->Stop();
+		fftw_destroy_plan(Plan);
+
+	}while(FALSE);
+
+	if(pwfx){ CoTaskMemFree(pwfx); }
+	if(pCaptureClient){ pCaptureClient->Release(); }
+	if(hCaptureEvent){ CloseHandle(hCaptureEvent); }
+	if(pAudioClient){ pAudioClient->Release(); }
+	if(pDevice){ pDevice->Release(); }
+	if(pEnumerator){ pEnumerator->Release(); }
+
+	CoUninitialize();
+	return 0;
 }

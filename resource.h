@@ -29,6 +29,9 @@
 #include <shellscalingapi.h>
 #include <stdio.h>
 
+#include <fftw3.h>
+#include <math.h>
+
 template <class T> void SAFE_RELEASE(T** ppT){
 	if (*ppT){
 		(*ppT)->Release();
