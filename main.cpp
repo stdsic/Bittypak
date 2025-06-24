@@ -65,19 +65,16 @@ class PlayerCallback : public IMFPMediaPlayerCallback{
 
 		switch(pEventHeader->eEventType){
 			case MFP_EVENT_TYPE_PLAY:
+				KillTimer(hWnd, 1);
+				SetTimer(hWnd, 1, 50, NULL);
 				break;
 
 			case MFP_EVENT_TYPE_PAUSE:
+				KillTimer(hWnd, 1);
 				break;
 
 			case MFP_EVENT_TYPE_STOP:
-				/*
-				if(pPlayer){
-					pPlayer->Shutdown();
-					pPlayer->Release();
-					pPlayer = NULL;
-				}
-				*/
+				KillTimer(hWnd, 1);
 				break;
 
 			case MFP_EVENT_TYPE_POSITION_SET:
@@ -310,7 +307,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 			switch (LOWORD(wParam)){
 				case IDC_BTNFIRST:
 					if(HIWORD(wParam) == PRESSED){
-						KillTimer(hWnd, 1);
 						if(pPlayer){
 							MFP_MEDIAPLAYER_STATE State;
 							HRESULT hr = pPlayer->GetState(&State);
@@ -331,16 +327,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
 				case IDC_BTNFIRST + 1:
 					// 리스트 뷰 활용 -> 선택한 항목 문자열 불러온 후 파일 재생
-					KillTimer(hWnd, 1);
 					if(HIWORD(wParam) == PRESSED){
 						PlaySelectedItem(hWnd, hBtns[1], hListView, hVolume, pCallback, &pPlayer);
-						if(pPlayer){
-							MFP_MEDIAPLAYER_STATE State;
-							pPlayer->GetState(&State);
-							if(State == MFP_MEDIAPLAYER_STATE_PLAYING){
-								SetTimer(hWnd, 1, 50, NULL);
-							}
-						}else{
+						if(!pPlayer){
 							SendMessage(hBtns[1], CBM_SETSTATE, UP, (LPARAM)0);
 						}
 					}else{
@@ -350,21 +339,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
 				case IDC_BTNFIRST + 2:
 					if(HIWORD(wParam) == PRESSED){
-						KillTimer(hWnd, 1);
 						PlayNextOrPrev(hWnd, hBtns[1], hListView, hVolume, pCallback, &pPlayer, FALSE);
-						if(pPlayer){
-							SetTimer(hWnd, 1, 50, NULL);
-						}
 					}
 					break;
 
 				case IDC_BTNFIRST + 3:
 					if(HIWORD(wParam) == PRESSED){
-						KillTimer(hWnd, 1);
 						PlayNextOrPrev(hWnd, hBtns[1], hListView, hVolume, pCallback, &pPlayer, TRUE);
-						if(pPlayer){
-							SetTimer(hWnd, 1, 50, NULL);
-						}
 					}
 					break;
 
@@ -693,35 +674,36 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 			switch(wParam){
 				case 1:
 					if(bSeeking){ break; }
+					if(pPlayer){
+						// PROPVARIANT: 메타 데이터 컨테이너 -> 쉘이나 COM 프로그래밍 토픽 참고
+						PROPVARIANT PropPosition, PropDuration;
+						PropVariantInit(&PropDuration);
+						PropVariantInit(&PropPosition);
 
-					// PROPVARIANT: 메타 데이터 컨테이너 -> 쉘이나 COM 프로그래밍 토픽 참고
-					PROPVARIANT PropPosition, PropDuration;
-					PropVariantInit(&PropDuration);
-					PropVariantInit(&PropPosition);
+						if(SUCCEEDED(pPlayer->GetPosition(MFP_POSITIONTYPE_100NS, &PropPosition)) && SUCCEEDED(pPlayer->GetDuration(MFP_POSITIONTYPE_100NS, &PropDuration))){
+							// Duration: 전체 재생 시간, Position: 현재 위치
+							// 단위: 나노초, 1초: 천만, 1분: 6억
+							double Ratio = (double)PropPosition.uhVal.QuadPart / PropDuration.uhVal.QuadPart;
+							int Range = SendMessage(hProgress, CSM_GETRANGEMAX, 0,0);
 
-					if(SUCCEEDED(pPlayer->GetPosition(MFP_POSITIONTYPE_100NS, &PropPosition)) && SUCCEEDED(pPlayer->GetDuration(MFP_POSITIONTYPE_100NS, &PropDuration))){
-						// Duration: 전체 재생 시간, Position: 현재 위치
-						// 단위: 나노초, 1초: 천만, 1분: 6억
-						double Ratio = (double)PropPosition.uhVal.QuadPart / PropDuration.uhVal.QuadPart;
-						int Range = SendMessage(hProgress, CSM_GETRANGEMAX, 0,0);
+							int CurrentPosition = Ratio * Range;
+							SendMessage(hProgress, CSM_SETPOSITION, CurrentPosition, 0);
 
-						int CurrentPosition = Ratio * Range;
-						SendMessage(hProgress, CSM_SETPOSITION, CurrentPosition, 0);
+							ULONGLONG Current = PropPosition.uhVal.QuadPart / 10000000; // 초 단위
+							ULONGLONG Total = PropDuration.uhVal.QuadPart / 10000000;
 
-						ULONGLONG Current = PropPosition.uhVal.QuadPart / 10000000; // 초 단위
-						ULONGLONG Total = PropDuration.uhVal.QuadPart / 10000000;
+							int cc = Current % 60;
+							int cm = (Current / 60) % 60;
+							int ch = Current / 3600;
+							int tc = Total % 60;
+							int tm = (Total / 60) % 60;
+							int th = Total / 3600;
 
-						int cc = Current % 60;
-						int cm = (Current / 60) % 60;
-						int ch = Current / 3600;
-						int tc = Total % 60;
-						int tm = (Total / 60) % 60;
-						int th = Total / 3600;
-
-						wsprintf(TimeLine, L"[%02d:%02d:%02d / %02d:%02d:%02d]", ch, cm, cc, th, tm, tc);
+							wsprintf(TimeLine, L"[%02d:%02d:%02d / %02d:%02d:%02d]", ch, cm, cc, th, tm, tc);
+						}
+						PropVariantClear(&PropPosition);
+						PropVariantClear(&PropDuration);
 					}
-					PropVariantClear(&PropPosition);
-					PropVariantClear(&PropDuration);
 					break;
 
 				case 2:
