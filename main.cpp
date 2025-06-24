@@ -567,8 +567,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 				GetWindowRect(hProgress, &rcSpectrum);
 				ScreenToClient(hWnd, (LPPOINT)&rcSpectrum);
 				ScreenToClient(hWnd, (LPPOINT)&rcSpectrum + 1);
-				SetRect(&rcSpectrum, rcSpectrum.left, rcSpectrum.top - (TimeTextSize.cy + ButtonHeight + Padding * 3), rcSpectrum.right, rcSpectrum.bottom);
-				SetRect(&rcSpectrum, rcSpectrum.left, rcSpectrum.top, rcSpectrum.left + BINS, rcSpectrum.top + ButtonHeight + Padding);
+				SetRect(&rcSpectrum, rcSpectrum.left, rcSpectrum.top - (TimeTextSize.cy + ButtonHeight + Padding * 3), rcSpectrum.left + BINS, rcSpectrum.top - (TimeTextSize.cy + Padding * 2));
 
 				HDWP hdwp = BeginDeferWindowPos(BTN_COUNT);
 				for(int i = 0; i < BTN_COUNT; i++){
@@ -661,10 +660,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 					hPen = CreatePen(PS_SOLID,1,RGB(0,0,255));
 					hOldPen = (HPEN)SelectObject(hMemDC,hPen);
 
-					double Max = 1.0;
-					double Base = log10(Max + 1.0);
-					for(int x = rcSpectrum.left, i = 0; x < (x + BINS) / 2; x++,i++){
-						int Height = rcSpectrum.bottom - rcSpectrum.top;
+					// 블렌딩으로 고르게 표현하기 위해 정규화
+					double FrameMax = 1e-6, DynamicMax = 1e-6;
+					for(int i=0; i<BINS; i++){
+						if(Spectrum[i] > FrameMax){ FrameMax = Spectrum[i]; }
+					}
+					DynamicMax = (((FrameMax) > (DynamicMax)) ? (FrameMax) : (((DynamicMax) * 0.95) + ((FrameMax) * 0.05)));
+
+					for(int i=0; i<BINS; i++){
+						Spectrum[i] /= DynamicMax;
+					}
+
+					// 블렌딩 인수 적용
+					for(int i=0; i<BINS; i++){
+						// 0.5도 적당한 편이나, 더 시각적 효과를 주기 위해 pow 적용
+						Spectrum[i] = pow(Spectrum[i], 0.4);
+					}
+
+					int Height = rcSpectrum.bottom - rcSpectrum.top;
+					for(int x = rcSpectrum.left, i=0; x < (x + BINS) / 2; x++, i++){
 						MoveToEx(hMemDC, x, rcSpectrum.bottom, NULL);
 						LineTo(hMemDC, x, (int)(rcSpectrum.bottom - min(Spectrum[i] * Height, Height)));
 					}
