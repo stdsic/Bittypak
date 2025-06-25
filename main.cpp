@@ -1,5 +1,6 @@
 #include "resource.h"
 #define CLASS_NAME					L"MusicPlayer"
+#define INPUT_POPUP_CLASS_NAME		L"FilenameInputPopup"
 #define IDC_CBFIRST					0x500
 #define IDC_LBFIRST					0x600
 #define IDC_STFIRST					0x800
@@ -33,6 +34,8 @@ void AppendFile(HWND hListView, WCHAR* Path);
 void PlaySelectedItem(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer **pPlayer, BOOL bPaused = FALSE);
 void PlayNextOrPrev(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bNext);
 BOOL WriteWavHeader(HANDLE hFile, DWORD DataSize, WORD Channels, DWORD SampleRate, WORD BitsPerSample);
+BOOL ShowInputPopup(HWND hParent, WCHAR* OutFileName, int MaxLength);
+void CenterWindow(HWND hWnd);
 
 #define FFT_SIZE 1024
 #define BINS 160
@@ -40,6 +43,7 @@ static volatile double Spectrum[BINS];
 static volatile BOOL bSpectrumReady = FALSE;
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
+LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
 
 // 콜백용 클래스 생성
 class PlayerCallback : public IMFPMediaPlayerCallback{
@@ -425,6 +429,24 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 						CloseHandle(hRecordThread);
 						CloseHandle(hRecordStopEvent);
 						hRecordThread = hRecordStopEvent = NULL;
+
+						// 입력 윈도우 추가 후 FileName 전달 받고 
+						WCHAR FileName[MAX_PATH] = L"";
+						if(ShowInputPopup(hWnd, FileName, MAX_PATH)){
+							if(GetFileAttributes(FileName) != INVALID_FILE_ATTRIBUTES){
+								int ret = MessageBox(HWND_DESKTOP, L"이미 같은 이름의 파일이 존재합니다.\n덮어쓰시겠습니까?", L"Warning", MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2);
+								if(ret != IDYES){
+									MessageBoxW(HWND_DESKTOP, L"녹음 파일 저장이 취소되었습니다.", L"Information", MB_OK | MB_ICONINFORMATION);
+									return 0;
+								}
+							}
+
+							if(!MoveFileExW(L"MusicPlayer_Recording_Wave_File.wav", FileName, MOVEFILE_REPLACE_EXISTING)){
+								DWORD dwError = GetLastError();
+								wsprintfW(Debug, L"파일 이름 변경 실패: 오류 코드 0x%08X", dwError);
+								MessageBoxW(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
+							}
+						}
 					}
 					break;
 
@@ -990,7 +1012,7 @@ DWORD WINAPI RecordThread(LPVOID lParam){
 	WCHAR Debug[0x100];
 	HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
-	const WCHAR *FileName = L"AudioCaptureTest.wav";
+	const WCHAR *FileName = L"MusicPlayer_Recording_Wave_File.wav";
 
 	WAVEFORMATEX* pwfx = NULL;
 	IMMDevice* pDevice = NULL;
@@ -1064,6 +1086,7 @@ DWORD WINAPI RecordThread(LPVOID lParam){
 		}
 
 		// WAV 헤더 비워두고 샘플 데이터 작성
+		// 메모리로 관리하는 것보다 실시간으로 파일에 작성하는 것이 합리적
 		hFile = CreateFile(FileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		if(hFile == INVALID_HANDLE_VALUE){
 			wsprintf(Debug, L"CreateFile Failed: %d", GetLastError());
@@ -1100,9 +1123,39 @@ DWORD WINAPI RecordThread(LPVOID lParam){
 					UINT32 NumFrames;
 					pCaptureClient->GetBuffer(&pData, &NumFrames, &dwFlags, NULL, NULL);
 
-					DWORD BytesToWrite = NumFrames * pwfx->nBlockAlign;
-					WriteFile(hFile, pData, BytesToWrite, &Written, NULL);
-					TotalBytesWritten += Written;
+					// WAVE_FORMAT_PCM(0x0001): 16비트 정수
+					// WAVE_FORMAT_IEEE_FLOAT(0x0003): 32비트 float
+					// WAVE_FORMAT_EXTENSIBLE(0xFFFE): 확장한 복잡한 형식, 하위에 실제 포맷 포함
+					// 대부분 float 형식을 반환하기 때문에 더 정밀한 분기 처리를 하지 않고 float으로 간주하여 처리한다.
+					if(pwfx->wFormatTag == WAVE_FORMAT_IEEE_FLOAT || (pwfx->wFormatTag == WAVE_FORMAT_EXTENSIBLE && pwfx->wBitsPerSample == 32)){
+						// 총 샘플 수 계산
+						UINT32 SamplesPerFrame = NumFrames * pwfx->nChannels;
+						const float* pFloat = (const float*)pData;
+
+						// 임시 버퍼 생성후 PCM 변환
+						short* PcmBuffer = (short*)malloc(sizeof(short) * SamplesPerFrame);
+						for(int i = 0; i < SamplesPerFrame; ++i){
+							// 정규화된 값, 즉 -1.0f ~ 1.0f 범위를 가지므로 이를 정수형으로 변환(short)
+							float Sample = pFloat[i];
+
+							// 값 잘라냄(클리핑)
+							if(Sample > 1.0f){ Sample = 1.0f; }
+							else if(Sample < -1.0f){ Sample = -1.0f; }
+
+							// short 범위로 매핑
+							PcmBuffer[i] = (short)(Sample * 32767.0f);
+						}
+
+						WriteFile(hFile, PcmBuffer, sizeof(short) * SamplesPerFrame, &Written, NULL);
+						TotalBytesWritten += Written;
+
+						free(PcmBuffer);
+					}else{
+						// PCM인 경우 그대로 저장
+						DWORD BytesToWrite = NumFrames * pwfx->nBlockAlign;
+						WriteFile(hFile, pData, BytesToWrite, &Written, NULL);
+						TotalBytesWritten += Written;
+					}
 
 					pCaptureClient->ReleaseBuffer(NumFrames);
 					pCaptureClient->GetNextPacketSize(&PacketLength);
@@ -1111,8 +1164,9 @@ DWORD WINAPI RecordThread(LPVOID lParam){
 		}
 		pAudioClient->Stop();
 
+		#define PCM_BITS 16
 		SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
-		if(!WriteWavHeader(hFile, TotalBytesWritten, pwfx->nChannels, pwfx->nSamplesPerSec, pwfx->wBitsPerSample)){
+		if(!WriteWavHeader(hFile, TotalBytesWritten, pwfx->nChannels, pwfx->nSamplesPerSec, PCM_BITS/* pwfx->wBitsPerSample: 32비트 값이 대부분이므로 16으로 고정*/)){
 			wsprintf(Debug, L"WriteWavHeader Failed");
 			MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
 		}
@@ -1142,7 +1196,7 @@ BOOL WriteWavHeader(HANDLE hFile, DWORD DataSize, WORD Channels, DWORD SampleRat
 	Header.AudioFormat = 1;
 	Header.NumChannels = Channels;
 	Header.SampleRate = SampleRate;
-	Header.ByteRate = SampleRate * Channels * BitsPerSample / 8;
+	Header.AvgByteRate = SampleRate * Channels * BitsPerSample / 8;
 	Header.BlockAlign = Channels * BitsPerSample / 8;
 	Header.BitsPerSample = BitsPerSample;
 
@@ -1343,4 +1397,80 @@ DWORD WINAPI SpectrumThread(LPVOID lParam){
 
 	CoUninitialize();
 	return 0;
+}
+
+LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam){
+	switch(iMessage){
+		case WM_CREATE:
+			SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)((LPCREATESTRUCT)lParam)->lpCreateParams);
+			CreateWindow(L"edit", L"", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL, 10, 10, 260, 24, hWnd, (HMENU)1001, NULL, NULL);
+			CreateWindow(L"button", L"저장", WS_CHILD | WS_VISIBLE, 30, 45, 80, 24, hWnd, (HMENU)1002, NULL, NULL);
+			CreateWindow(L"button", L"취소", WS_CHILD | WS_VISIBLE, 120, 45, 80, 24, hWnd, (HMENU)1003, NULL, NULL);
+			return 0;
+
+		case WM_COMMAND:
+			if(LOWORD(wParam) == 1002){
+				WCHAR* pOut = (WCHAR*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+				HWND hEdit = GetDlgItem(hWnd, 1001);
+				GetWindowText(hEdit, pOut, MAX_PATH);
+				DestroyWindow(hWnd);
+			}
+
+			if(LOWORD(wParam) == 1003){
+				DestroyWindow(hWnd);
+			}
+			return 0;
+
+		case WM_CLOSE:
+			DestroyWindow(hWnd);
+			return 0;
+	}
+
+	return DefWindowProc(hWnd, iMessage, wParam, lParam);
+}
+
+BOOL ShowInputPopup(HWND hParent, WCHAR* OutFileName, int MaxLength){
+	WNDCLASS twc;
+	if(!GetClassInfo(GetModuleHandle(NULL), INPUT_POPUP_CLASS_NAME, &twc)){
+		WNDCLASS wc = { 0 };
+		wc.lpfnWndProc = InputPopupWndProc;
+		wc.hInstance = GetModuleHandle(NULL);
+		wc.lpszClassName = INPUT_POPUP_CLASS_NAME;
+		RegisterClass(&wc);
+	}
+
+	HWND hPopup = CreateWindowEx(WS_EX_TOOLWINDOW, INPUT_POPUP_CLASS_NAME, L"파일 이름을 입력하세요", WS_POPUP | WS_BORDER | WS_CAPTION, CW_USEDEFAULT, CW_USEDEFAULT, 280, 110, hParent, NULL, GetModuleHandle(NULL), (LPVOID)OutFileName);
+
+	if(!hPopup){ return FALSE; }
+
+	ShowWindow(hPopup, SW_SHOW);
+	UpdateWindow(hPopup);
+	CenterWindow(hPopup);
+	EnableWindow(hParent, FALSE);
+
+	MSG msg;
+	while(IsWindow(hPopup) && GetMessage(&msg, NULL, 0, 0)) {
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+	EnableWindow(hParent, TRUE);
+	SetForegroundWindow(hParent);
+
+	return wcslen(OutFileName) > 0;
+}
+
+void CenterWindow(HWND hWnd){
+	RECT wrt, srt;
+	LONG lWidth, lHeight;
+	POINT NewPosition;
+
+	GetWindowRect(hWnd, &wrt);
+	GetWindowRect(GetDesktopWindow(), &srt);
+
+	lWidth = wrt.right - wrt.left;
+	lHeight = wrt.bottom - wrt.top;
+	NewPosition.x = (srt.right - lWidth) / 2;
+	NewPosition.y = (srt.bottom - lHeight) / 2;
+
+	SetWindowPos(hWnd, NULL, NewPosition.x, NewPosition.y, lWidth, lHeight, SWP_NOZORDER);
 }

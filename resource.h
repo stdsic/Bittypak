@@ -56,7 +56,7 @@ typedef struct {
 	WORD     AudioFormat;
 	WORD     NumChannels;
 	DWORD    SampleRate;
-	DWORD    ByteRate;
+	DWORD    AvgByteRate;
 	WORD     BlockAlign;
 	WORD     BitsPerSample;
 	char     Subchunk2ID[4];
