@@ -36,7 +36,9 @@ void PlaySelectedItem(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, Player
 void PlayNextOrPrev(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bNext);
 BOOL WriteWavHeader(HANDLE hFile, DWORD DataSize, WORD Channels, DWORD SampleRate, WORD BitsPerSample);
 BOOL ShowInputPopup(HWND hParent, WCHAR* OutFileName, int MaxLength);
-void CenterWindow(HWND hWnd);
+POINT GetWindowCenter(HWND hWnd);
+BOOL SetWindowCenter(HWND hParent, HWND hWnd, LPRECT lpRect);
+
 
 #define FFT_SIZE 1024
 #define BINS 160
@@ -1447,7 +1449,10 @@ BOOL ShowInputPopup(HWND hParent, WCHAR* OutFileName, int MaxLength){
 
 	ShowWindow(hPopup, SW_SHOW);
 	UpdateWindow(hPopup);
-	CenterWindow(hPopup);
+
+	RECT srt;
+	SetWindowCenter(hParent, hPopup, &srt);
+	SetWindowPos(hPopup, NULL, srt.left, srt.top, srt.right, srt.bottom, SWP_NOZORDER);
 	EnableWindow(hParent, FALSE);
 
 	MSG msg;
@@ -1461,18 +1466,36 @@ BOOL ShowInputPopup(HWND hParent, WCHAR* OutFileName, int MaxLength){
 	return wcslen(OutFileName) > 0;
 }
 
-void CenterWindow(HWND hWnd){
-	RECT wrt, srt;
-	LONG lWidth, lHeight;
-	POINT NewPosition;
+POINT GetWindowCenter(HWND hWnd){
+	RECT wrt;
+	if(hWnd == NULL){ GetWindowRect(GetDesktopWindow(), &wrt); }
+	else{ GetWindowRect(hWnd, &wrt); }
 
-	GetWindowRect(hWnd, &wrt);
-	GetWindowRect(GetDesktopWindow(), &srt);
+	int iWidth	= wrt.right - wrt.left;
+	int iHeight	= wrt.bottom - wrt.top;
 
-	lWidth = wrt.right - wrt.left;
-	lHeight = wrt.bottom - wrt.top;
-	NewPosition.x = (srt.right - lWidth) / 2;
-	NewPosition.y = (srt.bottom - lHeight) / 2;
+	iWidth /= 2;
+	iHeight /=2;
 
-	SetWindowPos(hWnd, NULL, NewPosition.x, NewPosition.y, lWidth, lHeight, SWP_NOZORDER);
+	POINT Center = {iWidth, iHeight};
+
+	return Center;
 }
+
+BOOL SetWindowCenter(HWND hParent, HWND hWnd, LPRECT lpRect){
+	if(lpRect == NULL){ return FALSE; }
+	if(hWnd != NULL){ GetWindowRect(hWnd, lpRect); }
+
+	POINT Center = GetWindowCenter(hParent);
+
+	int TargetWndWidth	= lpRect->right - lpRect->left;
+	int TargetWndHeight = lpRect->bottom - lpRect->top;
+
+	lpRect->left	= Center.x - (TargetWndWidth / 2);
+	lpRect->top		= Center.y - (TargetWndHeight / 2);
+	lpRect->right	= TargetWndWidth;
+	lpRect->bottom	= TargetWndHeight;
+
+	return TRUE;
+}
+
