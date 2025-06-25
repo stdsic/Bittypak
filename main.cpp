@@ -4,6 +4,7 @@
 #define IDC_CBFIRST					0x500
 #define IDC_LBFIRST					0x600
 #define IDC_STFIRST					0x800
+#define TEMPFILENAME				L"IsRecordingTempFile_Dont_Delete.wav"
 
 #define DEFAULT_MAINWINDOW_WIDTH	300
 #define DEFAULT_MAINWINDOW_HEIGHT	150
@@ -441,7 +442,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 								}
 							}
 
-							if(!MoveFileExW(L"MusicPlayer_Recording_Wave_File.wav", FileName, MOVEFILE_REPLACE_EXISTING)){
+							if(!MoveFileExW(TEMPFILENAME, FileName, MOVEFILE_REPLACE_EXISTING)){
 								DWORD dwError = GetLastError();
 								wsprintfW(Debug, L"파일 이름 변경 실패: 오류 코드 0x%08X", dwError);
 								MessageBoxW(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
@@ -1012,7 +1013,7 @@ DWORD WINAPI RecordThread(LPVOID lParam){
 	WCHAR Debug[0x100];
 	HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
-	const WCHAR *FileName = L"MusicPlayer_Recording_Wave_File.wav";
+	const WCHAR *FileName = TEMPFILENAME;
 
 	WAVEFORMATEX* pwfx = NULL;
 	IMMDevice* pDevice = NULL;
@@ -1413,6 +1414,7 @@ LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPAR
 				WCHAR* pOut = (WCHAR*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
 				HWND hEdit = GetDlgItem(hWnd, 1001);
 				GetWindowText(hEdit, pOut, MAX_PATH);
+				wcscat(pOut, L".wav");
 				DestroyWindow(hWnd);
 			}
 
