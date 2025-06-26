@@ -6,6 +6,7 @@
 #define IDC_STFIRST					0x800
 #define TEMPFILENAME				L"IsRecordingTempFile_Dont_Delete.wav"
 #define KEY_PATH_POSITION			L"Software\\stdsicSoft\\InitInfo\\LastPosition"
+#define KEY_PATH_HISTORY			L"Software\\stdsicSoft\\InitInfo\\History"
 
 #define DEFAULT_MAINWINDOW_WIDTH	400
 #define DEFAULT_MAINWINDOW_HEIGHT	200
@@ -43,6 +44,7 @@ BOOL WriteWavHeader(HANDLE hFile, DWORD DataSize, WORD Channels, DWORD SampleRat
 BOOL ShowInputPopup(HWND hParent, WCHAR* OutFileName, int MaxLength);
 POINT GetWindowCenter(HWND hWnd);
 BOOL SetWindowCenter(HWND hParent, HWND hWnd, LPRECT lpRect);
+void MakeHistory();
 
 static volatile double Spectrum[BINS];
 static volatile BOOL bSpectrumReady = FALSE;
@@ -209,7 +211,7 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int nCmdShow){
 	RegisterClassEx(&wcex);
 
 	HWND hWnd = CreateWindowEx(
-			WS_EX_CLIENTEDGE,
+			WS_EX_CLIENTEDGE,  //| WS_EX_ACCEPTFILES,
 			CLASS_NAME,
 			CLASS_NAME,
 			WS_POPUP | WS_BORDER | WS_VISIBLE | WS_CLIPCHILDREN,
@@ -327,6 +329,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
 				pCallback = new PlayerCallback(hWnd);
 				DragAcceptFiles(hWnd, TRUE);
+				ChangeWindowMessageFilter(WM_DROPFILES, MSGFLT_ADD);
+				// WM_COPYGLOBALDATA: 본래 숨겨진 메시지로 내부적으로만 사용됨
+				// 관리자 권한으로 실행된 프로세스는 다른 프로세스와 격리되므로 일반 권한의 탐색기에서 관리자 권한의 프로그램으로 Drop 동작시 통신에 필요
+				ChangeWindowMessageFilter(0x0049, MSGFLT_ADD);
 				bOnWindow = FALSE;
 			}
 			return 0;
@@ -756,9 +762,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 				}
 
 				if(bOnWindow && bSpectrum && bSpectrumReady && hBitmap){
-					hPen = CreatePen(PS_SOLID,1,RGB(0,0,255));
-					hOldPen = (HPEN)SelectObject(hMemDC,hPen);
-
 					// 블렌딩으로 고르게 표현하기 위해 정규화
 					double FrameMax = 1e-6, DynamicMax = 1e-6;
 					for(int i=0; i<BINS; i++){
@@ -778,10 +781,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
 					int Height = rcSpectrum.bottom - rcSpectrum.top;
 					for(int x = rcSpectrum.left, i=0; x < (x + BINS) / 2; x++, i++){
+						float Hue = (float)i / BINS;
+
+						Color Rainbow(Hue, 0.5f, 0.75f, TRUE);
+						COLORREF cr = Rainbow.ToColor().ToColorRef();
+
+						hPen = CreatePen(PS_SOLID, 1, cr);
+						hOldPen = (HPEN)SelectObject(hMemDC, hPen);
 						MoveToEx(hMemDC, x, rcSpectrum.bottom, NULL);
 						LineTo(hMemDC, x, (int)(rcSpectrum.bottom - min(Spectrum[i] * Height, Height)));
+						DeleteObject(SelectObject(hMemDC, hOldPen));
 					}
-					DeleteObject(SelectObject(hMemDC, hOldPen));
 				}
 
 				GetObject(hBitmap, sizeof(BITMAP), &bmp);
@@ -974,6 +984,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 			DestroyWindow(hWnd);
 			return 0;
 
+		case WM_DROPFILES:
+			{
+				WCHAR szFile[MAX_PATH];
+				DragQueryFile((HDROP)wParam, 0, szFile, MAX_PATH);
+				DragFinish((HDROP)wParam);
+				MessageBox(hWnd, szFile, L"드롭된 파일", MB_OK);
+			}
+			return 0;
+
 		case WM_DESTROY:
 			KillTimer(hWnd, 1);
 			if(pPlayer){ 
@@ -1049,7 +1068,7 @@ void OpenFiles(HWND hWnd, HWND hListView){
 		if(*ptr != 0){
 			wcscpy(lpszDir, lpszName);
 
-			while (*ptr) {
+			while(*ptr){
 				wcscpy(lpszName, ptr);
 				wsprintf(lpszTemp, L"%s\\%s", lpszDir, lpszName);
 				AppendFile(hListView, lpszTemp);
@@ -1058,6 +1077,11 @@ void OpenFiles(HWND hWnd, HWND hListView){
 		}else{
 			AppendFile(hListView, lpstrFile);
 		}
+
+		HWND hBtn = GetDlgItem(hWnd, IDC_BTNFIRST + 1);
+		SendMessage(hBtn, CBM_SETSTATE, DOWN, (LPARAM)0);
+		SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 1, PRESSED), (LPARAM)hBtn);
+		// MakeHistory(hWnd);
 	}else{
 		if(CommDlgExtendedError() == FNERR_BUFFERTOOSMALL){
 			MessageBox(HWND_DESKTOP, L"선택한 파일이 너무 많습니다.", L"Error", MB_OK | MB_ICONERROR);
@@ -1629,4 +1653,3 @@ BOOL SetWindowCenter(HWND hParent, HWND hWnd, LPRECT lpRect){
 
 	return TRUE;
 }
-
