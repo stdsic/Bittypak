@@ -3,6 +3,7 @@
 
 #include "CustomButton.h"
 #include "CustomScrollBar.h"
+#include "RegistryUtility.h"
 // #include <windows.h>
 // #include <commctrl.h>
 
