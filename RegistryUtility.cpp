@@ -46,7 +46,7 @@ BOOL WriteRegistryData(HKEY hParentKey, LPCWSTR lpszPath, DWORD dwDesired, LPCWS
 //	REG_FULL_RESOURCE_DESCRIPTOR:		full resource descriptor (자원 설명자)
 //	REG_RESOURCE_REQUIREMENTS_LIST:		resource requirements list (자원 요구 사항 목록)
 
-DWORD ReadRegistryData(HKEY hParentKey, LPCWSTR lpszPath, DWORD dwDesired, LPCWSTR lpszKeyName, PVOID Return, DWORD Size){
+DWORD ReadRegistryData(HKEY hParentKey, LPCWSTR lpszPath, DWORD dwDesired, LPCWSTR lpszKeyName, PVOID Return, DWORD Size, INT_PTR nDefault){
 	LONG ret;
 	DWORD dwType, dwcbData = Size;
 
@@ -83,52 +83,9 @@ DWORD ReadRegistryData(HKEY hParentKey, LPCWSTR lpszPath, DWORD dwDesired, LPCWS
 		RegCloseKey(hSubKey);
 	}
 
+	if(ret != ERROR_SUCCESS){
+		*((INT_PTR*)Return) = nDefault;
+	}
+
 	return (((ret) == ERROR_SUCCESS) ? (dwType) : REG_NONE);
-}
-
-void SavePosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath){
-	WINDOWPLACEMENT WindowPlacement = {
-		.length = sizeof(WINDOWPLACEMENT),
-	};
-
-	GetWindowPlacement(hWnd, &WindowPlacement);
-	WriteRegistryData(hKey, lpszPath, KEY_WRITE, L"CurrentState", REG_DWORD, &WindowPlacement.showCmd, sizeof(UINT));
-	WriteRegistryData(hKey, lpszPath, KEY_WRITE, L"Left", REG_DWORD, &WindowPlacement.rcNormalPosition.left, sizeof(LONG));
-	WriteRegistryData(hKey, lpszPath, KEY_WRITE, L"Top", REG_DWORD, &WindowPlacement.rcNormalPosition.top, sizeof(LONG));
-	WriteRegistryData(hKey, lpszPath, KEY_WRITE, L"Right", REG_DWORD, &WindowPlacement.rcNormalPosition.right, sizeof(LONG));
-	WriteRegistryData(hKey, lpszPath, KEY_WRITE, L"Bottom", REG_DWORD, &WindowPlacement.rcNormalPosition.bottom, sizeof(LONG));
-}
-
-void LoadPosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath){
-	RECT DefaultRect;
-
-	WINDOWPLACEMENT WindowPlacement = {
-		.length = sizeof(WINDOWPLACEMENT),
-		.flags = 0,
-	};
-
-	SetRect(&DefaultRect, 30,30, 1024, 480);
-
-	DWORD dwType;
-	dwType = ReadRegistryData(hKey, lpszPath, KEY_READ, L"CurrentState", &WindowPlacement.showCmd, sizeof(UINT));
-	dwType = ReadRegistryData(hKey, lpszPath, KEY_READ, L"Left", &WindowPlacement.rcNormalPosition.left, sizeof(LONG));
-	dwType = ReadRegistryData(hKey, lpszPath, KEY_READ, L"Top", &WindowPlacement.rcNormalPosition.top, sizeof(LONG));
-	dwType = ReadRegistryData(hKey, lpszPath, KEY_READ, L"Right", &WindowPlacement.rcNormalPosition.right, sizeof(LONG));
-	dwType = ReadRegistryData(hKey, lpszPath, KEY_READ, L"Bottom", &WindowPlacement.rcNormalPosition.bottom, sizeof(LONG));
-
-	if(dwType == REG_NONE){
-		// 처음 실행될 때
-		// CenterWindow(hWnd);				// 사용 가능
-		WindowPlacement.showCmd = SW_SHOW;
-		CopyRect(&WindowPlacement.rcNormalPosition, &DefaultRect);
-	}
-
-	if(WindowPlacement.showCmd == SW_SHOWMINIMIZED){
-		WindowPlacement.showCmd = SW_RESTORE;
-	}
-
-	WindowPlacement.ptMinPosition.x = WindowPlacement.ptMinPosition.y = 0;
-	WindowPlacement.ptMaxPosition.x = WindowPlacement.ptMaxPosition.y = 0;
-
-	SetWindowPlacement(hWnd, &WindowPlacement);
 }
