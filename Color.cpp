@@ -60,11 +60,11 @@ COLORREF Color::ToColorRef(){
 Color Color::ToColor(){
 	float R = 0.f, G = 0.f, B = 0.f;
 
-	int i = (int)(_H * 6.f);
+	int i = (int)(_H * 6.f) % 6;
 	float f = _H * 6.f - i;
 	float p = _V * (1.f - _S);
-	float q = _V * (1 - f * _S);
-	float t = _V * (1 - (1 - f) * _S);
+	float q = _V * (1.f - f * _S);
+	float t = _V * (1.f - (1.f - f) * _S);
 
 	if(i==0){ R = _V, G = t, B = p; }
 	if(i==1){ R = q, G = _V, B = p; }
