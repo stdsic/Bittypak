@@ -1,4 +1,7 @@
 #include "CustomButton.h"
+#include "Color.h"
+#define max(a,b) (((a) > (b)) ? (a) : (b))
+#define min(a,b) (((a) < (b)) ? (a) : (b))
 
 LRESULT CALLBACK CustomButtonProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
 
@@ -36,6 +39,7 @@ struct tag_CustomButtonData {
 BOOL IsPtOnMe(HWND hWnd, LPARAM lParam);
 HBITMAP GetStandardBitmap(HWND hParent);
 void DrawBitmap(HDC hdc, int x, int y, HBITMAP hBitmap);
+void DrawSpectrumCircle(HDC hdc, POINT Origin, int Radius);
 
 LRESULT CALLBACK CustomButtonProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam) {
 	static const int EDGEFRAME = 1;
@@ -342,9 +346,14 @@ LRESULT CALLBACK CustomButtonProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARA
 					}
 					break;
 
-				case MENU:
+				case SPECTRUM:
 					{
-						
+						GetClientRect(hWnd, &crt);
+						int iWidth = crt.right - crt.left;
+						int iHeight = crt.bottom - crt.top;
+						int iRadius = min(iWidth, iHeight) / 2;
+						POINT Origin = { iWidth / 2, iHeight / 2 };
+						DrawSpectrumCircle(hMemDC, Origin, iRadius);
 					}
 					break;
 			}
@@ -449,3 +458,55 @@ HBITMAP GetStandardBitmap(HWND hParent) {
 	return NULL;
 }
 
+void DrawSpectrumCircle(HDC hdc, POINT Origin, int Radius){
+	// 버튼 크기가 16x16
+	// 중심이 8,8에 반지름이 8 픽셀
+	// 원의 둘레는 2 * PI * R이므로 약 50.26
+	// 즉 현재 버튼 영역에 맞게 원을 그린다고 가정할 때, 이 원의 둘레를 따라 최대 50개의 픽셀을 표현할 수 있다.
+	// 곧, 원의 둘레에만 색상을 표현한다고 해도 최소 간격이 1픽셀 이상이어야 한다.
+
+	// 반지름 8픽셀, 원의 중심각을 델타 세타(rad)로 잡고 중심각에 대응하는 호의 길이를 구해보면 다음과 같다.
+	// 픽셀 단위에서의 좌표간의 거리(=호의 길이): Radius * 중심각
+
+	// 두 점이 너무 가까우면 정수화시 같은 픽셀 좌표가 되므로 최소 2 ~ 4픽셀 차이가 나게끔 잡는다.
+	// 따라서, 중심각을 0.3 ~ 0.5(rad)로 하면 2 ~ 4픽셀 차이가 나고 제대로 표현 가능하다.
+	
+	// 0.3 ~ 0.5(rad)는 약 20도에서 30도 사이이므로 최소 20도로 잡고 원을 조각내보면 18 ~ 12조각으로 나눌 수 있다.
+	// 여기서는 실제로 가장 안전한 값인 12조각으로 나눈다.
+
+	// 실행해보니 역시 인생사 기합과 계산만으로 전부 해결되진 않는다.
+	// 이쁘지 않으므로 8 ~ 10 조각으로 나누기로 하자.
+	const int Slices = 8;
+	double PI = atan(1.0) * 4.0;
+
+	int Left   = Origin.x - Radius;
+	int Top    = Origin.y - Radius;
+	int Right  = Origin.x + Radius;
+	int Bottom = Origin.y + Radius;
+
+	for(int i = 0; i < Slices; i++){
+		float Hue = (float)i / (float)(Slices-1);
+		Color c(Hue, 1.0f, 0.85f, TRUE);
+		COLORREF color = c.ToColor().ToColorRef();
+
+		// 중심각(=rad)
+		double AngleOne = (i * 45) * PI / 180.0;
+		double AngleTwo = ((i + 1) * 45) * PI / 180.0;
+
+		int x1 = (int)(Origin.x + Radius * cos(AngleOne));
+		int y1 = (int)(Origin.y - Radius * sin(AngleOne));
+		int x2 = (int)(Origin.x + Radius * cos(AngleTwo));
+		int y2 = (int)(Origin.y - Radius * sin(AngleTwo));
+
+		if(x1 == x2 && y1 == y2){ continue; }
+		// Pie는 사각형 기준의 원으로 그리므로 바운딩 박스가 필요하다
+		HBRUSH hBrush = CreateSolidBrush(color);
+		HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, hBrush);
+
+		// 각도 기준으로 원형 조각 그리기
+		Pie(hdc, Left, Top, Right, Bottom, x1, y1, x2, y2);
+
+		SelectObject(hdc, hOldBrush);
+		DeleteObject(hBrush);
+	}
+}
