@@ -4,6 +4,7 @@
 #include "CustomButton.h"
 #include "CustomScrollBar.h"
 #include "RegistryUtility.h"
+#include "Color.h"
 // #include <windows.h>
 // #include <commctrl.h>
 
@@ -32,20 +33,6 @@
 
 #include <fftw3.h>
 #include <math.h>
-
-template <class T> void SAFE_RELEASE(T** ppT){
-	if (*ppT){
-		(*ppT)->Release();
-		*ppT = NULL;
-	}
-}
-
-template <class T> inline void SAFE_RELEASE(T*& pT){
-	if (pT != NULL){
-		pT->Release();
-		pT = NULL;
-	}
-}
 
 #pragma pack(push, 1)
 typedef struct {
