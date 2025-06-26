@@ -109,6 +109,11 @@ class PlayerCallback : public IMFPMediaPlayerCallback{
 				pPlayer->GetState(&CurrentState);
 				break;
 
+			case MFP_EVENT_TYPE_MEDIAITEM_CLEARED:
+				// EMPTY
+				pPlayer->GetState(&CurrentState);
+				break;
+
 			case MFP_EVENT_TYPE_MEDIAITEM_SET:
 				if(pPlayer){
 					MFP_MEDIAPLAYER_STATE State;
@@ -140,9 +145,6 @@ class PlayerCallback : public IMFPMediaPlayerCallback{
 				break;
 
 			case MFP_EVENT_TYPE_FRAME_STEP:
-				break;
-
-			case MFP_EVENT_TYPE_MEDIAITEM_CLEARED:
 				break;
 
 			case MFP_EVENT_TYPE_MF:
@@ -282,6 +284,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 	DWORD dwType;
 	RECT DefaultRect;
 	WINDOWPLACEMENT WindowPlacement;
+	
+	static LARGE_INTEGER StartTime, Frequency;
 
 	switch (iMessage){
 		case WM_CREATE:
@@ -449,11 +453,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
 				case IDC_BTNFIRST + 6:
 					if(HIWORD(wParam) == PRESSED){
+						QueryPerformanceFrequency(&Frequency);
+						QueryPerformanceCounter(&StartTime);
+						SetTimer(hWnd, 2, 100, NULL);
 						hRecordStopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 						hRecordThread = CreateThread(NULL, 0, RecordThread, (LPVOID)NULL, 0, &dwThreadID[0]);
 					}else{
 						SetEvent(hRecordStopEvent);
 						WaitForSingleObject(hRecordThread, INFINITE);
+						KillTimer(hWnd, 2);
 						CloseHandle(hRecordThread);
 						CloseHandle(hRecordStopEvent);
 						hRecordThread = hRecordStopEvent = NULL;
@@ -481,6 +489,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 								DeleteFile(TEMPFILENAME);
 							}
 						}
+						wcscpy(TimeLine, TimeSample);
+						InvalidateRect(hWnd, NULL, FALSE);
 					}
 					break;
 
@@ -849,6 +859,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 						PropVariantClear(&PropDuration);
 					}
 					break;
+
+				case 2:
+					{
+						LARGE_INTEGER Now;
+						QueryPerformanceCounter(&Now);
+
+						LONGLONG Elapsed = Now.QuadPart - StartTime.QuadPart;
+						double Seconds = (double)Elapsed / Frequency.QuadPart;
+
+						int hh = (int)(Seconds / 3600);
+						int mm = (int)((Seconds - hh * 3600) / 60);
+						int ss = (int)(Seconds) % 60;
+						wsprintf(TimeLine, L"[%02d:%02d:%02d / %02d:%02d:%02d]", 0, 0, 0, hh, mm, ss);
+					}
+					break;
 			}
 			InvalidateRect(hWnd, NULL, FALSE);
 			return 0;
@@ -1056,13 +1081,25 @@ void AppendFile(HWND hListView, WCHAR* Path) {
 
 void PlaySelectedItem(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bPaused){
 	if(pCallback == NULL){ return ; }
+	MFP_MEDIAPLAYER_STATE State;
+	State = pCallback->GetCurrentState();
+
+	if(State == MFP_MEDIAPLAYER_STATE_PLAYING && bPaused == TRUE){
+		(*pPlayer)->Pause();
+		return ;
+	}
+
+	if(State == MFP_MEDIAPLAYER_STATE_PAUSED && bPaused == FALSE){
+		(*pPlayer)->Play();
+		return ;
+	}
 
 	int nCount = ListView_GetItemCount(hListView);
 	int SelectItem = ListView_GetNextItem(hListView, -1, LVNI_SELECTED);
 	if(SelectItem == -1 && nCount == 0){ return; }
 	if(SelectItem == -1 && nCount != 0){ SelectItem = 0; }
 
-	static WCHAR LastPath[MAX_PATH] = L"FullPath";
+	// static WCHAR LastPath[MAX_PATH] = L"FullPath";
 	LVITEM li = { 0 };
 	li.mask = LVIF_PARAM;
 	li.iItem = SelectItem;
@@ -1070,6 +1107,14 @@ void PlaySelectedItem(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, Player
 	WCHAR* Path = (WCHAR*)li.lParam;
 	if(!Path){ return; }
 
+	if(*pPlayer){
+		(*pPlayer)->Stop();
+		(*pPlayer)->Shutdown();
+		(*pPlayer)->Release();
+		*pPlayer = NULL;
+	}
+
+	/*
 	if(*pPlayer){
 		MFP_MEDIAPLAYER_STATE State;
 		State = pCallback->GetCurrentState();
@@ -1095,6 +1140,7 @@ void PlaySelectedItem(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, Player
 		(*pPlayer)->Release();
 		*pPlayer = NULL;
 	}
+	*/
 
 	if(SUCCEEDED(MFPCreateMediaPlayer(Path, FALSE, 0, pCallback, hWnd, pPlayer))){
 		pCallback->SetPlayer(*pPlayer);
@@ -1103,7 +1149,7 @@ void PlaySelectedItem(HWND hWnd, HWND hBtn, HWND hListView, HWND hVolume, Player
 		float fUserVolume = (float)CurrentPosition / 255.f;
 		(*pPlayer)->SetVolume(fUserVolume);
 		(*pPlayer)->Play();
-		wcscpy_s(LastPath, Path);
+		// wcscpy_s(LastPath, Path);
 	}
 }
 
