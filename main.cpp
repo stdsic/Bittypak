@@ -1,13 +1,20 @@
 #include "resource.h"
 #define CLASS_NAME					L"MusicPlayer"
-#define INPUT_POPUP_CLASS_NAME		L"FilenameInputPopup"
+#define INPUT_POPUP_CLASS_NAME		L"InputPopup"
 #define IDC_CBFIRST					0x500
 #define IDC_LVFIRST					0x600
 #define IDC_STFIRST					0x800
 #define IDM_ITEM_DELETE				0x900
+#define IDM_CREATE_PLAYLIST         0x901
+#define IDM_DELETE_PLAYLIST			0x902
+#define IDM_RANDOM_PLAY             0x903
+#define IDM_LOOP_PLAY               0x904
 #define TEMPFILENAME				L"IsRecordingTempFile_Dont_Delete.wav"
 #define KEY_PATH_POSITION			L"Software\\stdsicSoft\\InitInfo\\LastPosition"
 #define KEY_PATH_HISTORY			L"Software\\stdsicSoft\\InitInfo\\History"
+#define INPUT_POPUP_TEMPLATE1       L"파일 이름을 입력하세요."
+#define INPUT_POPUP_TEMPLATE2       L"플레이리스트 이름을 입력하세요."
+
 
 #define DEFAULT_MAINWINDOW_WIDTH	400
 #define DEFAULT_MAINWINDOW_HEIGHT	200
@@ -25,9 +32,6 @@
 // volatile 키워드를 사용하면 변수의 값을 레지스터나 캐시에 저장해 속도를 높이는 최적화를 막는다.
 // 즉, 캐싱이나 컴파일러에 의한 최적화를 막아 항상 메모리에서 직접 최신 값을 읽도록 한다.
 // 이는 단순히 읽고 쓰는 용도의 전역 변수를 멀티 스레드 환경에서 사용하고자 할 때 유용하다.
-// 다만, 지금은 적절하지 않으므로 이벤트 객체를 사용하기로 한다.
-// static volatile BOOL bAudioCapture = FALSE;
-
 class PlayerCallback;
 
 HANDLE hRecordStopEvent = NULL;
@@ -42,19 +46,26 @@ void Cleanup();
 void OpenFiles(HWND hWnd);
 void AppendFile(HWND hListView, WCHAR* Path);
 void PlaySelectedItem(HWND hWnd, PlayerCallback* pCallback, IMFPMediaPlayer **pPlayer, WCHAR* Return, BOOL bPaused = FALSE);
-void PlayNextOrPrev(HWND hWnd, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bNext);
+void PlayNextOrPrev(HWND hWnd, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bLoop, BOOL bRandom, BOOL bNext);
 BOOL WriteWavHeader(HANDLE hFile, DWORD DataSize, WORD Channels, DWORD SampleRate, WORD BitsPerSample);
-BOOL ShowInputPopup(HWND hParent, WCHAR* OutFileName, int MaxLength);
+BOOL ShowInputPopup(HWND hParent, WCHAR* Out, int MaxLength, int iMode);
 POINT GetMonitorCenter(HWND hWnd);
 SIZE GetScaledWindowSize(HWND hWnd);
 BOOL SetWindowCenter(HWND hParent, HWND hChild);
-void TraverseDirTree(WCHAR* Path, WCHAR* Pattern);
-
+void TraverseDirTree(HWND hWnd, WCHAR* Path);
+BOOL IsAudioFile(const WCHAR* Path);
+BOOL MatchPattern(const WCHAR* Path, const WCHAR* Pattern);
+std::mt19937& GetRandomEngine();
+int GetRandomInt(int Min, int Max);
+void CreatePlaylist(HWND hWnd, WCHAR* Name, BOOL bDelete = FALSE);
+void DestroyPlaylist(HWND hWnd);
+void SavePlaylist(HWND hWnd);
+void LoadPlaylist(HWND hWnd);
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
 LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
 
-// 콜백용 클래스 생성
+// 콜백 클래스
 class PlayerCallback : public IMFPMediaPlayerCallback{
     LONG RefCount = 1;
     HWND hWnd;
@@ -265,7 +276,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
     LVCOLUMN COL;
 
-    LVITEM li;
+    LVITEM LI;
     LPNMHDR lphdr;
     LPNMITEMACTIVATE lpnia;
     LPNMLISTVIEW lpnlv;
@@ -292,6 +303,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
     static LARGE_INTEGER StartTime, Frequency;
     static BOOL bOnWindow;
     static WCHAR CurrentItem[MAX_PATH];
+    static BOOL bLoop, bRandom;
 
     switch (iMessage){
         case WM_CREATE:
@@ -337,6 +349,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                 // 관리자 권한으로 실행된 프로세스는 다른 프로세스와 격리되므로 일반 권한의 탐색기에서 관리자 권한의 프로그램으로 Drop 동작시 통신에 필요
                 ChangeWindowMessageFilter(0x0049, MSGFLT_ADD);
                 bOnWindow = FALSE;
+                bLoop = FALSE;
+                bRandom = FALSE;
+
+                // TODO: 함수 작성 완료, 프로그램을 처음 다운로드 받고 시작했을 때 기본 플레이리스트 생성되도록 설계
             }
             return 0;
 
@@ -387,6 +403,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                         if(!pPlayer){
                             bOnWindow = FALSE;
                             SendMessage(hBtns[1], CBM_SETSTATE, UP, (LPARAM)0);
+                            wcscpy(TimeLine, TimeSample);
+                            InvalidateRect(hWnd, NULL, FALSE);
+
+                            if(CurrentItem != NULL){
+                                if(IDYES == MessageBox(hWnd, L"파일을 찾을 수 없습니다.\r\n해당 항목을 삭제하시겠습니까?", L"Error", MB_YESNO | MB_ICONERROR)){
+                                    SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDM_ITEM_DELETE, 0), (LPARAM)0);
+                                }
+
+                                SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 3, PRESSED), (LPARAM)hBtns[3]);
+                            }
                         }else{
                             bOnWindow = TRUE;
                         }
@@ -399,13 +425,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
                 case IDC_BTNFIRST + 2:
                     if(HIWORD(wParam) == PRESSED){
-                        PlayNextOrPrev(hWnd, pCallback, &pPlayer, FALSE);
+                        PlayNextOrPrev(hWnd, pCallback, &pPlayer, FALSE, bRandom, FALSE);
                     }
                     break;
 
                 case IDC_BTNFIRST + 3:
                     if(HIWORD(wParam) == PRESSED){
-                        PlayNextOrPrev(hWnd, pCallback, &pPlayer, TRUE);
+                        PlayNextOrPrev(hWnd, pCallback, &pPlayer, FALSE, bRandom, TRUE);
                     }
                     break;
 
@@ -483,7 +509,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                         // 입력 윈도우 추가 후 FileName 전달 받고 
                         WCHAR FileName[MAX_PATH] = L"";
 retry:
-                        if(ShowInputPopup(hWnd, FileName, MAX_PATH)){
+                        if(ShowInputPopup(hWnd, FileName, MAX_PATH, 0)){
                             if(GetFileAttributes(FileName) != INVALID_FILE_ATTRIBUTES){
                                 int ret = MessageBox(HWND_DESKTOP, L"이미 같은 이름의 파일이 존재합니다.\n덮어쓰시겠습니까?", L"Warning", MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2);
                                 if(ret != IDYES){
@@ -537,15 +563,15 @@ retry:
                         for(int i = ListView_GetItemCount(hListView) - 1; i>=0; i--){
                             if(!(ListView_GetItemState(hListView, i, LVIS_SELECTED) & LVIS_SELECTED)){ continue; }
 
-                            LVITEM lvitem = {0};
-                            lvitem.mask = LVIF_PARAM;
-                            lvitem.iItem = i;
-                            lvitem.iSubItem = 0;
+                            memset(&LI, 0, sizeof(LI));
+                            LI.mask = LVIF_PARAM;
+                            LI.iItem = i;
+                            LI.iSubItem = 0;
 
                             BOOL bPlaying = FALSE;
                             BOOL bCurrent = FALSE;
-                            if(ListView_GetItem(hListView, &lvitem)){
-                                bCurrent = (wcscmp(CurrentItem, (WCHAR*)lvitem.lParam) == 0);
+                            if(ListView_GetItem(hListView, &LI)){
+                                bCurrent = (wcscmp(CurrentItem, (WCHAR*)LI.lParam) == 0);
                             }
 
                             if(bCurrent && pPlayer && pCallback){
@@ -570,6 +596,31 @@ retry:
 
                             ListView_DeleteItem(hListView, i);
                         }
+                    }
+                    break;
+
+                case IDM_CREATE_PLAYLIST:
+                    {
+                        WCHAR PlaylistName[MAX_PATH];
+                        if(ShowInputPopup(hWnd, PlaylistName, MAX_PATH, 1)){
+                            CreatePlaylist(hWnd, PlaylistName, TRUE);
+                        }
+                    }
+                    break;
+
+                case IDM_DELETE_PLAYLIST:
+                    DestroyPlaylist();
+                    break;
+
+                case IDM_RANDOM_PLAY:
+                    if(!bLoop){
+                        bRandom = !bRandom;
+                    }
+                    break;
+
+                case IDM_LOOP_PLAY:
+                    if(!bRandom){
+                        bLoop = !bLoop;
                     }
                     break;
             }
@@ -870,17 +921,18 @@ retry:
 
                     case LVN_DELETEITEM:
                         lpnlv = (LPNMLISTVIEW)lParam;
-                        li.mask = LVIF_PARAM;
-                        li.iItem = lpnlv->iItem;
-                        ListView_GetItem(hListView, &li);
-                        free((LPVOID)li.lParam);
+                        memset(&LI, 0, sizeof(LI));
+                        LI.mask = LVIF_PARAM;
+                        LI.iItem = lpnlv->iItem;
+                        ListView_GetItem(hListView, &LI);
+                        free((LPVOID)LI.lParam);
                         break;
                 }
             }
             return 0;
 
         case WM_PLAYNEXT:
-            PlayNextOrPrev(hWnd, pCallback, &pPlayer, TRUE);
+            PlayNextOrPrev(hWnd, pCallback, &pPlayer, bLoop, bRandom, TRUE);
             return 0;
 
         case WM_TIMER:
@@ -1065,6 +1117,10 @@ retry:
 
                 ClientToScreen(hListView, &Mouse);
                 HMENU hMenu = CreatePopupMenu();
+                AppendMenu(hMenu, MF_STRING, IDM_CREATE_PLAYLIST, L"새 재생목록 생성");
+                AppendMenu(hMenu, MF_STRING, IDM_DELETE_PLAYLIST, L"현재 재생목록 삭제");
+                AppendMenu(hMenu, MF_STRING | ((bRandom == FALSE) ? MF_UNCHECKED : MF_CHECKED), IDM_RANDOM_PLAY, L"랜덤 재생");
+                AppendMenu(hMenu, MF_STRING | ((bLoop == FALSE) ? MF_UNCHECKED : MF_CHECKED), IDM_LOOP_PLAY, L"반복 재생");
                 AppendMenu(hMenu, MF_STRING, IDM_ITEM_DELETE, L"삭제");
                 TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, Mouse.x, Mouse.y, 0, hWnd, NULL);
                 DestroyMenu(hMenu);
@@ -1075,15 +1131,25 @@ retry:
             {
                 WCHAR Path[MAX_PATH];
                 int nDrop = DragQueryFile((HDROP)wParam, -1, Path, MAX_PATH);
+
                 for(int i=0; i<nDrop; i++){
                     DragQueryFile((HDROP)wParam, i, Path, MAX_PATH);
-                    if(GetFileAttributes(Path) & FILE_ATTRIBUTE_DIRECTORY){
+
+                    DWORD Attr = GetFileAttributes(Path);
+                    if(Attr == INVALID_FILE_ATTRIBUTES){continue;}
+
+                    if(Attr & FILE_ATTRIBUTE_DIRECTORY){
                         // 디렉토리 내부에 있는 파일 탐색
-                    }else{
+                        TraverseDirTree(hWnd, Path);
+                    }else if(IsAudioFile(Path)){
                         // 파일의 확장자 비교 후 AppendFile
+                        AppendFile(hListView, Path);
                     }
                 }
                 DragFinish((HDROP)wParam);
+
+                SendMessage(hBtns[1], CBM_SETSTATE, DOWN, (LPARAM)0);
+                SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 1, PRESSED), (LPARAM)hBtns[1]);
             }
             return 0;
 
@@ -1185,7 +1251,7 @@ void OpenFiles(HWND hWnd){
 }
 
 void AppendFile(HWND hListView, WCHAR* Path) {
-    LVITEM LI;
+    LVITEM LI = {0};
     WCHAR FileName[MAX_PATH];
     WCHAR* Param;
 
@@ -1213,18 +1279,18 @@ void PlaySelectedItem(HWND hWnd, PlayerCallback* pCallback, IMFPMediaPlayer **pP
         SendMessage(hButton, CBM_SETSTATE, UP, (LPARAM)0);
         return;
     }
-    if(SelectItem == -1 && nCount != 0){ SelectItem = 0; }
 
-    LVITEM li = { 0 };
-    li.mask = LVIF_PARAM;
-    li.iItem = SelectItem;
-    ListView_GetItem(hListView, &li);
-    WCHAR* Path = (WCHAR*)li.lParam;
-    wcscpy(Return, (WCHAR*)li.lParam);
-    if(!Path){ 
-        SendMessage(hButton, CBM_SETSTATE, UP, (LPARAM)0);
-        return;
+    if(SelectItem == -1 && nCount != 0){
+        SelectItem = 0;
     }
+
+    LVITEM LI = { 0 };
+    LI.mask = LVIF_PARAM;
+    LI.iItem = SelectItem;
+    ListView_GetItem(hListView, &LI);
+    WCHAR* Path = (WCHAR*)LI.lParam;
+    wcscpy(Return, (WCHAR*)LI.lParam);
+    if(!Path){ return; }
 
     if(*pPlayer){
         MFP_MEDIAPLAYER_STATE State;
@@ -1248,7 +1314,7 @@ void PlaySelectedItem(HWND hWnd, PlayerCallback* pCallback, IMFPMediaPlayer **pP
     }
 }
 
-void PlayNextOrPrev(HWND hWnd, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bNext){
+void PlayNextOrPrev(HWND hWnd, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bLoop, BOOL bRandom, BOOL bNext){
     if(*pPlayer){
         (*pPlayer)->Stop();
         (*pPlayer)->Shutdown();
@@ -1264,10 +1330,16 @@ void PlayNextOrPrev(HWND hWnd, PlayerCallback* pCallback, IMFPMediaPlayer** pPla
     if(SelectItem == -1 && nCount != 0){ SelectItem = 0; }
 
     if(SelectItem != -1){
-        if(bNext){
-            SelectItem = (SelectItem + 1) % nCount;
+        if(bLoop){
+            SelectItem = ListView_GetNextItem(hListView, -1, LVNI_SELECTED);
+        }else if(bRandom){
+            SelectItem = GetRandomInt(0, nCount);
         }else{
-            SelectItem = (SelectItem - 1 + nCount) % nCount;
+            if(bNext == TRUE){
+                SelectItem = (SelectItem + 1) % nCount;
+            }else if(bNext == FALSE){
+                SelectItem = (SelectItem - 1 + nCount) % nCount;
+            }
         }
 
         ListView_SetItemState(hListView, -1, 0, LVIS_SELECTED | LVIS_FOCUSED);
@@ -1434,7 +1506,7 @@ DWORD WINAPI RecordThread(LPVOID lParam){
         pAudioClient->Stop();
 
         SetFilePointer(hFile, 0, NULL, FILE_BEGIN);
-        if(!WriteWavHeader(hFile, TotalBytesWritten, pwfx->nChannels, pwfx->nSamplesPerSec, PCM_BITS/* pwfx->wBitsPerSample: 32비트 값이 대부분이므로 16으로 고정*/)){
+        if(!WriteWavHeader(hFile, TotalBytesWritten, pwfx->nChannels, pwfx->nSamplesPerSec, PCM_BITS/* pwfx->wBitsPerSample: 32비트 값으로 읽었으나 PCM 포맷은 short 단위이므로 16으로 고정*/)){
             wsprintf(Debug, L"WriteWavHeader Failed");
             MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
         }
@@ -1667,8 +1739,12 @@ DWORD WINAPI SpectrumThread(LPVOID lParam){
 }
 
 LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam){
+    WCHAR Title[MAX_PATH];
+
     switch(iMessage){
         case WM_CREATE:
+            GetWindowText(hWnd, Title, MAX_PATH);
+
             SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)((LPCREATESTRUCT)lParam)->lpCreateParams);
             CreateWindow(L"edit", L"", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL, 10, 10, 260, 24, hWnd, (HMENU)1001, NULL, NULL);
             CreateWindow(L"button", L"저장", WS_CHILD | WS_VISIBLE, 30, 45, 80, 24, hWnd, (HMENU)1002, NULL, NULL);
@@ -1680,7 +1756,9 @@ LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPAR
                 WCHAR* pOut = (WCHAR*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
                 HWND hEdit = GetDlgItem(hWnd, 1001);
                 GetWindowText(hEdit, pOut, MAX_PATH);
-                wcscat(pOut, L".wav");
+                if(wcscmp(Title, INPUT_POPUP_TEMPLATE1) == 0){
+                    wcscat(pOut, L".wav");
+                }
                 DestroyWindow(hWnd);
             }
 
@@ -1697,7 +1775,7 @@ LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPAR
     return DefWindowProc(hWnd, iMessage, wParam, lParam);
 }
 
-BOOL ShowInputPopup(HWND hParent, WCHAR* OutFileName, int MaxLength){
+BOOL ShowInputPopup(HWND hParent, WCHAR* Out, int MaxLength, int iMode){
     WNDCLASS twc;
     if(!GetClassInfo(GetModuleHandle(NULL), INPUT_POPUP_CLASS_NAME, &twc)){
         WNDCLASS wc = { 0 };
@@ -1707,7 +1785,16 @@ BOOL ShowInputPopup(HWND hParent, WCHAR* OutFileName, int MaxLength){
         RegisterClass(&wc);
     }
 
-    HWND hPopup = CreateWindowEx(WS_EX_TOOLWINDOW, INPUT_POPUP_CLASS_NAME, L"파일 이름을 입력하세요", WS_POPUP | WS_BORDER | WS_CAPTION, 100, 100, 280, 110, hParent, NULL, GetModuleHandle(NULL), (LPVOID)OutFileName);
+    HWND hPopup = NULL;
+    switch(iMode){
+        case 0:
+            hPopup = CreateWindowEx(WS_EX_TOOLWINDOW, INPUT_POPUP_CLASS_NAME, INPUT_POPUP_TEMPLATE1, WS_POPUP | WS_BORDER | WS_CAPTION, 100, 100, 280, 110, hParent, NULL, GetModuleHandle(NULL), (LPVOID)OutFileName);
+            break;
+
+        case 1:
+            hPopup = CreateWindowEx(WS_EX_TOOLWINDOW, INPUT_POPUP_CLASS_NAME, INPUT_POPUP_TEMPLATE2, WS_POPUP | WS_BORDER | WS_CAPTION, 100, 100, 280, 110, hParent, NULL, GetModuleHandle(NULL), (LPVOID)OutFileName);
+            break;
+    }
 
     if(!hPopup){ return FALSE; }
 
@@ -1734,7 +1821,10 @@ POINT GetMonitorCenter(HWND hWnd){
     MONITORINFO mi = { sizeof(mi) };
     GetMonitorInfo(hMonitor, &mi);
 
-    POINT Center = { (mi.rcWork.left + mi.rcWork.right) / 2, (mi.rcWork.top + mi.rcWork.bottom) / 2 };
+    POINT Center = { 
+        (mi.rcWork.left + mi.rcWork.right) / 2,
+        (mi.rcWork.top + mi.rcWork.bottom) / 2
+    };
 
     return Center;
 }
@@ -1769,26 +1859,160 @@ BOOL SetWindowCenter(HWND hParent, HWND hChild){
     return SetWindowPos(hChild, NULL, Left, Top, 0, 0, SWP_NOZORDER | SWP_NOSIZE | SWP_NOACTIVATE);
 }
 
-void TraverseDirTree(WCHAR* Path, WCHAR* Pattern){
+void TraverseDirTree(HWND hWnd, WCHAR* Path){
     WIN32_FIND_DATA wfd;
 
-    HANDLE hSearch;
     WCHAR CopyPath[MAX_PATH];
+    wsprintf(CopyPath, L"%s\\*", Path);
 
-    wcscpy(CopyPath, Path);
-    if(CopyPath[wcslen(CopyPath) - 1] == '\\'){
-        CopyPath[wcslen(CopyPath) - 1] = 0;
+    HANDLE hFind = FindFirstFile(CopyPath, &wfd);
+    if(hFind == INVALID_HANDLE_VALUE){ return; }
+
+    do{
+        if(wcscmp(wfd.cFileName, L".") == 0 || wcscmp(wfd.cFileName, L"..") == 0){ continue; }
+
+        WCHAR FullPath[MAX_PATH];
+        wsprintf(FullPath, L"%s\\%s", Path, wfd.cFileName);
+
+        if(wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY){
+            TraverseDirTree(hWnd, FullPath);
+        }else{
+            if(IsAudioFile(FullPath)){
+                AppendFile(GetDlgItem(hWnd, IDC_LVFIRST), FullPath);
+            }
+        }
+    }while(FindNextFile(hFind, &wfd));
+
+    FindClose(hFind);
+}
+
+BOOL IsAudioFile(const WCHAR* Path){
+    const WCHAR* Extension = PathFindExtension(Path);
+
+    if(Extension != NULL){
+        if(_wcsicmp(Extension, L".wav") == 0 || _wcsicmp(Extension, L".mp3") == 0){
+            return TRUE;
+        }
     }
 
-    wcscat(CopyPath, L"\\*.*");
-    hSearch = FindFirstFile(CopyPath, &wfd);
-    if(hSearch == INVALID_HANDLE_VALUE){ return; }
+    return FALSE;
+}
 
-    while(1){
-        if(wfd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY){
-            
-        }else{
+// 탐색 동작 확장할 생각 있으면 추가
+BOOL MatchPattern(const WCHAR* Path, const WCHAR* Pattern) {
+    if(*Pattern == 0){ return *Path == 0; }
 
+    if(*Pattern == '*'){
+        while(*Pattern == '*'){ Pattern++; }
+        if(*Pattern == 0){ return TRUE; }
+
+        while(*Path){
+            if(MatchPattern(Path, Pattern)){ return TRUE; }
+            Path++;
+        }
+        return FALSE;
+    }
+
+    if(*Pattern == '?'){
+        return *Path ? MatchPattern(Path + 1, Pattern + 1) : FALSE;
+    }
+
+    if(*Path == *Pattern){
+        return MatchPattern(Path + 1, Pattern + 1);
+    }
+
+    return FALSE;
+}
+
+std::mt19937& GetRandomEngine() {
+    static std::random_device RandomDevice;
+    static std::mt19937 Generator(RandomDevice());
+    return Generator;
+}
+
+int GetRandomInt(int Min, int Max){
+    std::uniform_int_distribution<> Dist(Min, Max);
+    return Dist(GetRandomEngine());
+}
+
+void CreatePlaylist(HWND hWnd, WCHAR* Name, BOOL bDelete){
+    if(Name == NULL || wcslen(Name) == 0){ return; }
+
+	HWND hComboBox = GetDlgItem(hWnd, IDC_CBFIRST);
+    HWND hListView = GetDlgItem(hWnd, IDC_LVFIRST);
+
+    WCHAR PlaylistName[MAX_PATH];
+    wcscpy(PlaylistName, Name);
+
+    if(bDelete){ ListView_DeleteAllItems(hListView); }
+    
+	SendMessage(hComboBox, CB_INSERTSTRING, 0, (LPARAM)PlaylistName);
+	SendMessage(hComboBox, CB_SETCURSEL, 0,0);
+
+    WCHAR Path[MAX_PATH];
+	int Count = SendMessage(hComboBox, CB_GETCOUNT, 0,0);
+
+	if(Count > 20){
+		SendMessage(hComboBox, CB_GETLBTEXT, 20, (LPARAM)PlaylistName);
+		SendMessage(hComboBox, CB_DELETESTRING, 20, 0);
+		wsprintf(Path, L"%s\\%s", KEY_PATH_HISTORY, PlaylistName);
+		SHDeleteKey(HKEY_CURRENT_USER, Path);
+	}
+}
+
+void SavePlaylist(HWND hWnd){
+    WCHAR PlaylistName[MAX_PATH];
+    HWND hComboBox = GetDlgItem(hWnd, IDC_CBFIRST);
+    int Select = SendMessage(hComboBox, CB_GETCURSEL, 0,0);
+    SendMEssage(hComboBox, CB_GETLBTEXT, Select, (LPARAM)PlaylistName);
+
+    HWND hListView = GetDlgItem(hWnd, IDC_LVFIRST);
+    int nCount = ListView_GetItemCount(hListView);
+
+    WCHAR PATH[MAX_PATH];
+    wsprintf(PATH, L"%s\\%s", KEY_PATH_HISTORY, PlaylistName);
+    WriteRegistryData(HKEY_CURRENT_USER, PATH, KEY_WRITE, L"Count", REG_DWORD, nCount, sizeof(LONG));
+
+    LVITEM LI;
+    WCHAR Key[0x40];
+    for(int i=0; i<nCount; i++){
+        LI.mask = LVIF_PARAM;
+        LI.iItem = i;
+        ListView_GetItem(hListView, &LI);
+        wsprintf(Value, L"%d", i);
+        WriteRegistryData(HKEY_CURRENT_USER, PATH, KEY_WRITE, Key, REG_SZ, (WCHAR*)LI.lParam, sizeof(WCHAR) * (wcslen((WCHAR*)LI.lParam) + 1));
+    }
+}
+
+void DestroyPlaylist(HWND hWnd){
+
+}
+
+void LoadPlaylist(HWND hWnd){
+    WCHAR PlaylistName[MAX_PATH];
+
+    HWND hComboBox = GetDlgItem(hWnd, IDC_CBFIRST);
+    HWND hListView = GetDlgItem(hWnd, IDC_LVFIRST);
+    ListView_DeleteAllItem(hListView);
+    
+    int Select = SendMessage(hComboBox, CB_GETCURSEL, 0,0);
+    SendMessage(hComboBox, CB_GETLBTEXT, Select, (LPARAM)PlaylistName);
+    
+    WCHAR PATH[MAX_PATH];
+    wsprintf(PATH, L"%s\\%s", KEY_PATH_HISTORY, PlaylistName);
+
+    int nCount;
+    DWORD dwType = ReadRegistryData(HKEY_CURRENT_USER, PATH, KEY_READ, L"Count", &nCount, sizeof(LONG), 0);
+
+    WCHAR Key[0x40];
+    WCHAR Value[MAX_PATH];
+    DWORD dwType;
+    for(int i=0; i<nCount; i++){
+        wsprintf(Value, L"%d", i);
+        dwType = ReadRegistryData(HKEY_CURRENT_USER, PATH, KEY_READ, Key, Value, sizeof(Value));
+        if(dwType != REG_NONE){
+            AppendFile(hListView, Value);
         }
     }
 }
+
