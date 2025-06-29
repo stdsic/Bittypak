@@ -27,12 +27,14 @@
 #include <wmcodecdsp.h>
 #include <wmsdkidl.h>
 #include <shellapi.h>
+#include <shlwapi.h>
 #include <shcore.h> // GetDpiForMonitor
 #include <shellscalingapi.h>
 #include <stdio.h>
 
 #include <fftw3.h>
 #include <math.h>
+#include <random>
 
 #pragma pack(push, 1)
 typedef struct {
