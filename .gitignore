@@ -11,3 +11,4 @@
 *.ico
 !README.txt
 makefile
+!BittypakSetup.exe
