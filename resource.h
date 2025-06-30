@@ -36,6 +36,7 @@
 #include <math.h>
 #include <random>
 
+#define IDI_ICON1   101
 #pragma pack(push, 1)
 typedef struct {
 	char     ChunkID[4];
