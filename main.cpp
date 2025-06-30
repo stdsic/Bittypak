@@ -207,6 +207,8 @@ class PlayerCallback : public IMFPMediaPlayerCallback{
 };
 
 int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int nCmdShow){
+    HBRUSH hBkBrush = CreateSolidBrush(RGB(240, 250, 255));
+
     WNDCLASSEX wcex = {
         sizeof(wcex),
         CS_HREDRAW | CS_VREDRAW,
@@ -215,7 +217,7 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int nCmdShow){
         hInst,
         LoadIcon(hInst, MAKEINTRESOURCE(IDI_ICON1)),
         LoadCursor(NULL, IDC_ARROW),
-        (HBRUSH)(COLOR_WINDOW + 1),
+        hBkBrush,
         NULL,
         CLASS_NAME,
         (HICON)LoadImage(hInst, MAKEINTRESOURCE(IDI_ICON1), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CXSMICON), LR_DEFAULTCOLOR)
@@ -242,6 +244,7 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int nCmdShow){
         DispatchMessage(&msg);
     }
 
+    DeleteObject(hBkBrush);
     return (int)msg.wParam;
 }
 
@@ -747,12 +750,13 @@ retry:
                 SendMessage(hProgress, CSM_SETRANGE, (WPARAM)0, (LPARAM)1000);
                 SendMessage(hProgress, CSM_SETTHUMBSIZE, (WPARAM)20, (LPARAM)0);
                 SendMessage(hProgress, CSM_SETTHUMBCOLOR, (WPARAM)RGB(255, 255, 255), (LPARAM)0);
-                SendMessage(hProgress, CSM_SETBKCOLOR, (WPARAM)RGB(180, 210, 245), (LPARAM)0);
+                SendMessage(hProgress, CSM_SETBKCOLOR, (WPARAM)RGB(240, 250, 255), (LPARAM)0);
                 SendMessage(hProgress, CSM_SETGAP, (WPARAM)5, (LPARAM)0);
 
                 SendMessage(hVolume, CSM_SETRANGE, (WPARAM)0, (LPARAM)255);
                 SendMessage(hVolume, CSM_SETTHUMBSIZE, (WPARAM)10, (LPARAM)0);
                 SendMessage(hVolume, CSM_SETTHUMBCOLOR, (WPARAM)RGB(255, 255, 255), (LPARAM)0);
+                SendMessage(hVolume, CSM_SETBKCOLOR, (WPARAM)RGB(240, 250, 255), (LPARAM)0);
                 SendMessage(hVolume, CSM_SETGAP, (WPARAM)5, (LPARAM)0);
                 SendMessage(hVolume, CSM_SETPOSITION, (WPARAM)255, 0);
 
