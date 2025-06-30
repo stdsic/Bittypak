@@ -1408,9 +1408,13 @@ void PlayNextOrPrev(HWND hWnd, PlayerCallback* pCallback, IMFPMediaPlayer** pPla
 
     if(SelectItem != -1){
         if(bRandom){
-            SelectItem = GetRandomInt(0, nCount);
+            int NewItem;
+            do{
+                NewItem = GetRandomInt(0, nCount);
+            }while(nCount > 1 && NewItem == SelectItem);
+            SelectItem = NewItem;
         }else if(bLoop){
-            SelectItem = ListView_GetNextItem(hListView, -1, LVNI_SELECTED);
+            SelectItem = SelectItem;
         }else{
             if(bNext){
                 SelectItem = (SelectItem + 1) % nCount;
