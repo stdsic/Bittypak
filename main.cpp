@@ -315,9 +315,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                 hr = Initialize();
                 if(FAILED(hr)){ return -1; }
                 
-                SendMessage(hWnd, WM_SETICON, ICON_BIG, (LPARAM)LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_ICON1)));
-                DwmInvalidateIconicBitmaps(hWnd);
-
                 hdc = GetDC(hWnd);
                 GetTextExtentPoint32(hdc, Description, wcslen(Description), &TextSize);
                 GetTextExtentPoint32(hdc, TimeSample, wcslen(TimeSample), &TimeTextSize);
