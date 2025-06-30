@@ -173,8 +173,9 @@ LRESULT CALLBACK CustomButtonProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARA
 				pData->hBitmap = CreateCompatibleBitmap(hdc, crt.right, crt.bottom);
 			}
 			hOld = SelectObject(hMemDC, pData->hBitmap);
-			FillRect(hMemDC, &crt, GetSysColorBrush(COLOR_BTNFACE));
+		    FillRect(hMemDC, &crt, GetSysColorBrush(COLOR_BTNFACE));
 
+            SetBkMode(hMemDC, TRANSPARENT);
 			// StringCbPrintf(Debug, sizeof(Debug), L"%d", pData->Index);
 			// TextOut(hMemDC, 0, 0, Debug, wcslen(Debug));
 
