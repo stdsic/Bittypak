@@ -1,5 +1,5 @@
 #include "resource.h"
-#define CLASS_NAME					L"MusicPlayer"
+#define CLASS_NAME					L"Bittypak"
 #define INPUT_POPUP_CLASS_NAME		L"InputPopup"
 #define IDC_CBFIRST					0x500
 #define IDC_LVFIRST					0x600
@@ -10,11 +10,10 @@
 #define IDM_RANDOM_PLAY             0x903
 #define IDM_LOOP_PLAY               0x904
 #define TEMPFILENAME				L"IsRecordingTempFile_Dont_Delete.wav"
-#define KEY_PATH_POSITION			L"Software\\stdsicSoft\\InitInfo\\LastPosition"
-#define KEY_PATH_PLAYLIST           L"Software\\stdsicSoft\\InitInfo\\Playlist"
+#define KEY_PATH_POSITION			L"Software\\Bittypak\\InitInfo\\LastPosition"
+#define KEY_PATH_PLAYLIST           L"Software\\Bittypak\\InitInfo\\Playlist"
 #define INPUT_POPUP_TEMPLATE1       L"파일 이름을 입력하세요."
 #define INPUT_POPUP_TEMPLATE2       L"플레이리스트 이름을 입력하세요."
-
 
 #define DEFAULT_MAINWINDOW_WIDTH	400
 #define DEFAULT_MAINWINDOW_HEIGHT	200
@@ -214,13 +213,13 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int nCmdShow){
         WndProc,
         0,0,
         hInst,
-        LoadIcon(NULL, IDI_APPLICATION), LoadCursor(NULL, IDC_ARROW),
+        LoadIcon(hInst, MAKEINTRESOURCE(IDI_ICON1)),
+        LoadCursor(NULL, IDC_ARROW),
         (HBRUSH)(COLOR_WINDOW + 1),
         NULL,
         CLASS_NAME,
-        LoadIcon(NULL, IDI_APPLICATION)
+        (HICON)LoadImage(hInst, MAKEINTRESOURCE(IDI_ICON1), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CXSMICON), LR_DEFAULTCOLOR)
     };
-
     RegisterClassEx(&wcex);
 
     HWND hWnd = CreateWindowEx(
@@ -308,12 +307,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
     int nCount;
     WCHAR Name[0x40];
     WCHAR PlaylistName[MAX_PATH];
+    static HBRUSH hBkBrush;
 
     switch (iMessage){
         case WM_CREATE:
             {
                 hr = Initialize();
                 if(FAILED(hr)){ return -1; }
+                
+                SendMessage(hWnd, WM_SETICON, ICON_BIG, (LPARAM)LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_ICON1)));
+                DwmInvalidateIconicBitmaps(hWnd);
 
                 hdc = GetDC(hWnd);
                 GetTextExtentPoint32(hdc, Description, wcslen(Description), &TextSize);
@@ -357,6 +360,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                 bOnWindow = FALSE;
                 bLoop = FALSE;
                 bRandom = FALSE;
+
+                hBkBrush = CreateSolidBrush(RGB(240, 250, 255));
             }
             return 0;
 
@@ -745,6 +750,7 @@ retry:
                 SendMessage(hProgress, CSM_SETRANGE, (WPARAM)0, (LPARAM)1000);
                 SendMessage(hProgress, CSM_SETTHUMBSIZE, (WPARAM)20, (LPARAM)0);
                 SendMessage(hProgress, CSM_SETTHUMBCOLOR, (WPARAM)RGB(255, 255, 255), (LPARAM)0);
+                SendMessage(hProgress, CSM_SETBKCOLOR, (WPARAM)RGB(180, 210, 245), (LPARAM)0);
                 SendMessage(hProgress, CSM_SETGAP, (WPARAM)5, (LPARAM)0);
 
                 SendMessage(hVolume, CSM_SETRANGE, (WPARAM)0, (LPARAM)255);
@@ -870,8 +876,9 @@ retry:
                     hBitmap = CreateCompatibleBitmap(hdc, iWidth, iHeight);
                 }
                 hOld = SelectObject(hMemDC, hBitmap);
-                FillRect(hMemDC, &crt, GetSysColorBrush(COLOR_WINDOW));
+                FillRect(hMemDC, &crt, hBkBrush);
 
+                SetBkMode(hMemDC, TRANSPARENT);
                 SetRect(&rcClose, iWidth - (Diameter + EDGE), crt.top + EDGE, 0, 0);
                 SetRect(&rcClose, rcClose.left, rcClose.top, rcClose.left + Diameter, rcClose.top + Diameter);
                 SetRect(&rcMinimize, rcClose.left - (Diameter + EDGE), rcClose.top, 0, 0);
@@ -1222,6 +1229,7 @@ retry:
 
         case WM_DESTROY:
             KillTimer(hWnd, 1);
+            DeleteObject(hBkBrush);
             if(pPlayer){ 
                 pPlayer->Shutdown();
                 pPlayer->Release();
@@ -2128,4 +2136,3 @@ void LoadPlaylist(HWND hWnd){
         }
     }
 }
-
