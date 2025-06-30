@@ -8,5 +8,6 @@
 *.txt
 *.wav
 *.mp3
-makefile
 *.ico
+!README.txt
+makefile
