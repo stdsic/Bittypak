@@ -1829,7 +1829,7 @@ DWORD WINAPI SpectrumThread(LPVOID lParam){
 }
 
 LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam){
-    WCHAR Title[MAX_PATH];
+    static WCHAR Title[MAX_PATH];
 
     switch(iMessage){
         case WM_CREATE:
