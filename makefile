@@ -2,7 +2,7 @@ CC = g++
 CPPFLAGS = -W -Wall -static-libgcc -static-libstdc++
 
 OPT = -mwindows -municode
-LDLIBS = -lcomctl32 -lshcore -lcomctl32 -lmf -lmfplat -lmfplay -lmfreadwrite -lmfuuid -lole32 -luser32 -lkernel32 -lshell32 -lavrt -lfftw3 -lshlwapi
+LDLIBS = -lcomctl32 -lshcore -lcomctl32 -lmf -lmfplat -lmfplay -lmfreadwrite -lmfuuid -lole32 -luuid -luser32 -lkernel32 -lshell32 -lavrt -lfftw3 -lshlwapi
 
 LDHDR = -I C:\vcpkg\installed\x64-mingw-static\include
 LDLIBF = -L C:\vcpkg\installed\x64-mingw-static\lib
