@@ -19,6 +19,7 @@
 // #include <mfmediaengine.h>
 
 // 시스템 사운드(스피커 오디오) 캡처
+#include <initguid.h>
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 #include <avrt.h>
