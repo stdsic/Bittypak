@@ -35,9 +35,11 @@
 // 즉, 캐싱이나 컴파일러에 의한 최적화를 막아 항상 메모리에서 직접 최신 값을 읽도록 한다.
 // 이는 단순히 읽고 쓰는 용도의 전역 변수를 멀티 스레드 환경에서 사용하고자 할 때 유용하다.
 class PlayerCallback;
+class DeviceCallback;
 
 HANDLE hRecordStopEvent = NULL;
 HANDLE hSpectrumStopEvent = NULL;
+HANDLE hDeviceChangedEvent = NULL;
 DWORD WINAPI RecordThread(LPVOID lParam);
 DWORD WINAPI SpectrumThread(LPVOID lParam);
 static volatile double Spectrum[BINS];
@@ -66,6 +68,57 @@ void LoadPlaylist(HWND hWnd);
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
 LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
+
+// 장치 변경 콜백
+class DeviceCallback : public IMMNotificationClient {
+    private:
+        LONG RefCount;
+        HANDLE hDeviceChangedEvent;
+    public:
+        DeviceCallback(HANDLE hEvent) : RefCount(1), hDeviceChangedEvent(hEvent) {;}
+        virtual ~DeviceCallback() {;}
+
+        virtual ULONG __stdcall AddRef(){
+            return InterlockedIncrement(&RefCount);
+        }
+        virtual ULONG __stdcall Release(){
+            ULONG Count = InterlockedDecrement(&RefCount);
+            if(Count == 0){ delete this; }
+            return Count;
+        }
+        virtual HRESULT __stdcall QueryInterface(REFIID riid, void** ppvInterface){
+            if(ppvInterface == NULL){ return E_POINTER; }
+
+            if(riid == IID_IUnknown || riid == IID_IMMNotificationClient){
+                *ppvInterface = (IMMNotificationClient*)(this);
+                AddRef();
+                return S_OK;
+            }
+
+            *ppvInterface = NULL;
+            return E_NOINTERFACE;
+        }
+
+        virtual HRESULT __stdcall OnDefaultDeviceChanged(EDataFlow Flow, ERole Role, LPCWSTR lpwszDeviceID){
+            if(Flow == eRender && Role == eConsole){
+                SetEvent(hDeviceChangedEvent);
+            }
+            return S_OK;
+        }
+        virtual HRESULT __stdcall OnDeviceAdded(LPCWSTR lpwszDeviceID){
+
+        }
+        virtual HRESULT __stdcall OnDeviceRemoved(LPCWSTR lpwszDeviceID){
+
+        }
+        virtual HRESULT __stdcall OnDeviceStateChanged(LPCWSTR lpwszDeviceID, DWORD dwNewState){
+
+        }
+        virtual HRESULT __stdcall OnPropertyValueChanged(LPCWSTR lpwszDeviceID, const PROPERTYKEY Key){
+
+        }
+};
+static DeviceCallback* pDeviceNotifier = NULL;
 
 // 콜백 클래스
 class PlayerCallback : public IMFPMediaPlayerCallback{
@@ -1268,6 +1321,7 @@ retry:
             if(hSpectrumThread){ CloseHandle(hSpectrumThread); }
             if(hRecordStopEvent){ CloseHandle(hRecordStopEvent); }
             if(hSpectrumStopEvent){ CloseHandle(hSpectrumStopEvent); }
+            if(hDeviceChangedEvent){ CloseHandle(hDeviceChangedEvent); }
             if(hBitmap){ DeleteObject(hBitmap); }
             Cleanup();
 
