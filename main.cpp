@@ -419,12 +419,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                             wcscpy(TimeLine, TimeSample);
                             InvalidateRect(hWnd, NULL, FALSE);
 
-                            if(CurrentItem != NULL){
+                            if(CurrentItem != NULL && wcscmp(CurrentItem, L"") != 0){
+                                MessageBox(hWnd, CurrentItem, L"?", MB_OK);
                                 if(IDYES == MessageBox(hWnd, L"파일을 찾을 수 없습니다.\r\n해당 항목을 삭제하시겠습니까?", L"Error", MB_YESNO | MB_ICONERROR)){
                                     SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDM_ITEM_DELETE, 0), (LPARAM)0);
+                                }else{
+                                    SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 3, PRESSED), (LPARAM)hBtns[3]);
                                 }
-
-                                SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 3, PRESSED), (LPARAM)hBtns[3]);
                             }
                         }else{
                             bOnWindow = TRUE;
