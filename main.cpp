@@ -404,6 +404,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                         SendMessage(hProgress, CSM_SETPOSITION, (WPARAM)0, (LPARAM)0);
                         SendMessage(hBtns[1], CBM_SETSTATE, UP, (LPARAM)0);
                         InvalidateRect(hWnd, NULL, FALSE);
+                        KillTimer(hWnd, 3);
                     }
                     break;
 
@@ -427,11 +428,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                             }
                         }else{
                             bOnWindow = TRUE;
+                            SetTimer(hWnd, 3, 30000, NULL);
                         }
                     }else{
                         memset(CurrentItem, 0, sizeof(CurrentItem));
                         PlaySelectedItem(hWnd, pCallback, &pPlayer, CurrentItem, TRUE);
                         bOnWindow = FALSE;
+                        KillTimer(hWnd, 3);
                     }
                     break;
 
@@ -1049,6 +1052,12 @@ retry:
                         wsprintf(TimeLine, L"[%02d:%02d:%02d / %02d:%02d:%02d]", 0, 0, 0, hh, mm, ss);
                     }
                     break;
+
+                case 3:
+                    {
+                        SetThreadExecutionState(ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED);
+                    }
+                    break;
             }
             InvalidateRect(hWnd, NULL, FALSE);
             return 0;
@@ -1230,6 +1239,8 @@ retry:
 
         case WM_DESTROY:
             KillTimer(hWnd, 1);
+            KillTimer(hWnd, 2);
+            KillTimer(hWnd, 3);
             DeleteObject(hBkBrush);
             if(pPlayer){ 
                 pPlayer->Shutdown();
