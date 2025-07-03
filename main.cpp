@@ -1,3 +1,4 @@
+// #define _DEBUG
 #include "resource.h"
 #define CLASS_NAME					L"Bittypak"
 #define INPUT_POPUP_CLASS_NAME		L"InputPopup"
@@ -20,6 +21,8 @@
 
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 #define min(a,b) (((a) < (b)) ? (a) : (b))
+#define GET_X_LPARAM(pt) ((int)(short)LOWORD(pt))
+#define GET_Y_LPARAM(pt) ((int)(short)HIWORD(pt))
 
 #define WM_PLAYNEXT					WM_APP + 1
 #define WM_NEWPOSITION				WM_APP + 2
@@ -207,6 +210,12 @@ class PlayerCallback : public IMFPMediaPlayerCallback{
 };
 
 int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int nCmdShow){
+#ifdef _DEBUG
+    AllocConsole();
+    freopen("CONOUT$", "w", stdout);
+    freopen("CONOUT$", "w", stderr);
+    printf("디버그 콘솔 활성화\n");
+#endif
     HBRUSH hBkBrush = CreateSolidBrush(RGB(240, 250, 255));
 
     WNDCLASSEX wcex = {
@@ -317,7 +326,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
             {
                 hr = Initialize();
                 if(FAILED(hr)){ return -1; }
-                
+
                 hdc = GetDC(hWnd);
                 GetTextExtentPoint32(hdc, Description, wcslen(Description), &TextSize);
                 GetTextExtentPoint32(hdc, TimeSample, wcslen(TimeSample), &TimeTextSize);
@@ -367,7 +376,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
         case WM_LBUTTONDOWN:
             {
-                POINT Mouse = { (int)(short)LOWORD(lParam), (int)(short)HIWORD(lParam) };
+                POINT Mouse = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
 
                 CopyRect(&srt, &rcClose);
                 CopyRect(&trt, &rcMinimize);
@@ -603,8 +612,10 @@ retry:
                             LI.iItem = i;
                             LI.iSubItem = 0;
 
-                            BOOL bPlaying = FALSE;
                             BOOL bCurrent = FALSE;
+                            BOOL bCompare = FALSE;
+                            BOOL bPlaying = FALSE;
+
                             if(ListView_GetItem(hListView, &LI)){
                                 bCurrent = (wcscmp(CurrentItem, (WCHAR*)LI.lParam) == 0);
                             }
@@ -631,7 +642,6 @@ retry:
 
                             ListView_DeleteItem(hListView, i);
                         }
-
                         SavePlaylist(hWnd);
                     }
                     break;
@@ -677,7 +687,11 @@ retry:
 
         case WM_NCHITTEST:
             {
-                POINT Mouse = { LOWORD(lParam), HIWORD(lParam) };
+
+                POINT Mouse = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+#ifdef _DEBUG
+                printf("[WM_NCHITTEST] CursorPos: x = %d, y = %d\n", Mouse.x, Mouse.y);
+#endif
                 GetWindowRect(hWnd, &wrt);
 
                 if(SendMessage(hBtns[5], CBM_GETSTATE, 0, 0) != DOWN){
@@ -709,13 +723,14 @@ retry:
                     return HTBOTTOMRIGHT;
                 }
                 if(Mouse.x >= wrt.left + BORDER && Mouse.x <= wrt.right - BORDER && Mouse.y >= wrt.top + BORDER && Mouse.y <= wrt.bottom - BORDER){
-                    ScreenToClient(hWnd, &Mouse);
+                    POINT LocalMouse = Mouse;
+                    ScreenToClient(hWnd, &LocalMouse);
 
                     CopyRect(&srt, &rcClose);
                     CopyRect(&trt, &rcMinimize);
                     InflateRect(&srt, -2, -2);
                     InflateRect(&trt, -2, -2);
-                    if (!PtInRect(&srt, Mouse) && !PtInRect(&trt, Mouse)) {
+                    if (!PtInRect(&srt, LocalMouse) && !PtInRect(&trt, LocalMouse)) {
                         return HTCAPTION;
                     }
                 }
@@ -1164,10 +1179,7 @@ retry:
 
         case WM_CONTEXTMENU:
             if((HWND)wParam == hListView){
-                POINT Mouse;
-                Mouse.x = LOWORD(lParam);
-                Mouse.y = HIWORD(lParam);
-
+                POINT Mouse = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
                 ScreenToClient(hListView, &Mouse);
 
                 LVHITTESTINFO lvhi = {0};
