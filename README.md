@@ -27,7 +27,7 @@ Windows Legacy API와 COM을 이용한 뮤직 플레이어입니다.<br>
 - 관리자 권한 필요 없음<br>
 <br>
 📦 Installing<br>
-[Releases](https://github.com/stdFrog/Bittypak/releases) 페이지에서 최신 테스트 버전 다운로드합니다.<br>
+[Releases](https://github.com/stdFrog/Bittypak/releases) 페이지에서 최신 테스트 버전을 다운로드합니다.<br>
 압축 해제 후 `Bittypak.exe` 또는 `BittypakInstaller.exe` 실행합니다.<br>
 <br>
 ▶️ Executing program<br>
@@ -38,4 +38,4 @@ Windows Legacy API와 COM을 이용한 뮤직 플레이어입니다.<br>
 - 알려진 버그(Known bug)가 존재하며 추후 업데이트될 예정입니다. 자세한 내용은 Releases 페이지에서 확인할 수 있습니다.<br>
 <br>
 👤 Authors<br>
-- stdsic — @https://github.com/stdsic/AnalogClock<br>
+- stdsic — @https://github.com/stdsic/Bittypak<br>
