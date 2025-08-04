@@ -106,16 +106,16 @@ class DeviceCallback : public IMMNotificationClient {
             return S_OK;
         }
         virtual HRESULT __stdcall OnDeviceAdded(LPCWSTR lpwszDeviceID){
-
+            return S_OK;
         }
         virtual HRESULT __stdcall OnDeviceRemoved(LPCWSTR lpwszDeviceID){
-
+            return S_OK;
         }
         virtual HRESULT __stdcall OnDeviceStateChanged(LPCWSTR lpwszDeviceID, DWORD dwNewState){
-
+            return S_OK;
         }
         virtual HRESULT __stdcall OnPropertyValueChanged(LPCWSTR lpwszDeviceID, const PROPERTYKEY Key){
-
+            return S_OK;
         }
 };
 static DeviceCallback* pDeviceNotifier = NULL;
@@ -864,7 +864,8 @@ retry:
                     SendMessage(hComboBox, CB_SETCURSEL, 0,0);
                     LoadPlaylist(hWnd);
                 }else{
-                    CreatePlaylist(hWnd, L"Default Playlist", TRUE);
+                    WCHAR DefaultPath[MAX_PATH] = L"Default Playlist";
+                    CreatePlaylist(hWnd, DefaultPath, TRUE);
                 }
             }
             return 0;
@@ -2004,7 +2005,17 @@ SIZE GetScaledWindowSize(HWND hWnd){
     int Width = wrt.right - wrt.left;
     int Height = wrt.bottom - wrt.top;
 
-    UINT DPI = GetDpiForWindow(hWnd);
+    UINT DPI;
+    HMODULE hUser32 = LoadLibrary(TEXT("User32.dll"));
+    if (hUser32) {
+        typedef UINT (WINAPI *GetDpiForWindowFunc)(HWND);
+        GetDpiForWindowFunc pGetDpiForWindow = (GetDpiForWindowFunc)GetProcAddress(hUser32, "GetDpiForWindow");
+        if (pGetDpiForWindow) {
+            DPI = pGetDpiForWindow(hWnd);
+        }
+        FreeLibrary(hUser32);
+    }
+
     float ScaleFactor = DPI / 96.0f;
 
     SIZE Scaled = {
@@ -2210,7 +2221,7 @@ void LoadPlaylist(HWND hWnd){
     for(int i=0; i<nCount; i++){
         wsprintf(Name, L"%d", i);
         dwType = ReadRegistryData(HKEY_CURRENT_USER, PATH, KEY_READ, Name, Data, sizeof(Data), (INT_PTR)L"");
-        if(dwType != NULL){
+        if(dwType != REG_NONE){
             AppendFile(hListView, Data);
         }
     }

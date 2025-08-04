@@ -1,4 +1,4 @@
-#ifndef __RESROUCE_H_
+#ifndef __RESOURCE_H_
 #define __RESOURCE_H_
 
 #include "CustomButton.h"
