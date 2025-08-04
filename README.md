@@ -1,3 +1,4 @@
+![Bittypak 실행 화면](./Images/Bittypak-demo.gif)
 # 📌 Bittypak<br>
 Windows Legacy API와 COM을 이용한 뮤직 플레이어입니다.<br>
 이 프로젝트는 MIT 라이선스 하에 제공되어 누구나 자유롭게 사용, 수정, 배포할 수 있습니다. 개인 또는 상업적 용도로도 활용이 가능합니다.<br>
@@ -29,7 +30,7 @@ Windows Legacy API와 COM을 이용한 뮤직 플레이어입니다.<br>
 ### 📥 Installing<br>
 [Releases](https://github.com/stdFrog/Bittypak/releases) 페이지에서 최신 버전을 확인하실 수 있습니다.<br>
 압축 해제 후 `Bittypak.exe` 또는 `BittypakInstaller.exe`를 실행합니다.<br>
-설치 파일(BittypakInstaller.exe)을 다운로드한 경우 안내에 따라 안전하게 실행 파일(ColorFromPoint.exe)을 설치하시면 됩니다.<br>
+설치 파일(BittypakInstaller.exe)을 다운로드한 경우 안내에 따라 안전하게 실행 파일(Bittypak.exe)을 설치하시면 됩니다.<br>
 <br>
 ### ▶️ Executing program<br>
 - Bittypak.exe<br>
@@ -39,7 +40,7 @@ Windows Legacy API와 COM을 이용한 뮤직 플레이어입니다.<br>
 - 알려진 버그(Known bug)가 존재하며 추후 업데이트될 예정입니다. 자세한 내용은 Releases 페이지에서 확인할 수 있습니다.<br>
 <br><br>
 ## 👤 Authors<br>
-- stdsic — @https://github.com/stdsic/ColorFromPoint<br>
+- stdsic — @https://github.com/stdsic/Bittypak<br>
 <br><br>
 ## 📚 Version History<br>
 - 0.1.0<br>
