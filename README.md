@@ -1,9 +1,8 @@
-# 📻 Bittypak<br>
+# 📌 Bittypak<br>
 Windows Legacy API와 COM을 이용한 뮤직 플레이어입니다.<br>
-이 프로젝트는 [Creative Commons BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) 라이선스를 따릅니다.<br>
-비상업적 목적에 한해 자유롭게 사용, 수정, 배포할 수 있으며, 반드시 저작자(stdsic)를 표시해야 합니다.<br>
-<br>
-## 🧾 Description<br>
+이 프로젝트는 MIT 라이선스 하에 제공되어 누구나 자유롭게 사용, 수정, 배포할 수 있습니다. 개인 또는 상업적 용도로도 활용이 가능합니다.<br>
+<br><br>
+## 📝 Description<br>
 "Bittypak"은 wav 및 mp3 포맷을 지원하는 뮤직 플레이어입니다.<br>
 시스템과 관련된 기능을 일부 사용하고 있으며 사용자가 작업한 내용을 기록하기 위한 용도로 레지스트리를 활용합니다.<br>
 예를 들어, 프로그램이 종료되기 전 마지막 위치나 사용자가 불러온 미디어 파일을 기억해두기 위해 레지스트리에 데이터와 키를 추가하여 관리합니다.<br>
@@ -13,29 +12,40 @@ Windows Legacy API와 COM을 이용한 뮤직 플레이어입니다.<br>
 버튼에는 여러가지 그림이 그려져 있는데 해당 버튼이 가진 기능을 보여줍니다.<br>
 <br>
 이는 차례대로 다음과 같습니다.<br>
-1. 중단<br>
-2. 재생/정지<br>
-3. 이전 곡<br>
-4. 다음 곡<br>
-5. 파일 추가<br>
-6. 플레이리스트 항목 보이기/숨기기<br>
-7. 녹음 시작/정지<br>
-8. 스펙트럼 그리기 활성화/비활성화<br>
 <br>
-✅ Dependencies<br>
-- Windows 98/2000 이상<br>
-- 관리자 권한 필요 없음<br>
+- 중단<br>
+- 재생/정지<br>
+- 이전 곡<br>
+- 다음 곡<br>
+- 파일 추가<br>
+- 플레이리스트 항목 보이기/숨기기<br>
+- 녹음 시작/정지<br>
+- 스펙트럼 그리기 활성화/비활성화<br>
+<br><br>
+## 🚀 Getting Started<br>
+### 🔧 Dependencies<br>
+- Windows 10 이상<br>
+<br><br>
+### 📥 Installing<br>
+[Releases](https://github.com/stdFrog/Bittypak/releases) 페이지에서 최신 버전을 확인하실 수 있습니다.<br>
+압축 해제 후 `Bittypak.exe` 또는 `BittypakInstaller.exe`를 실행합니다.<br>
+설치 파일(BittypakInstaller.exe)을 다운로드한 경우 안내에 따라 안전하게 실행 파일(ColorFromPoint.exe)을 설치하시면 됩니다.<br>
 <br>
-📦 Installing<br>
-[Releases](https://github.com/stdFrog/Bittypak/releases) 페이지에서 최신 테스트 버전을 다운로드합니다.<br>
-압축 해제 후 `Bittypak.exe` 또는 `BittypakInstaller.exe` 실행합니다.<br>
-<br>
-▶️ Executing program<br>
+### ▶️ Executing program<br>
 - Bittypak.exe<br>
-<br>
-❓ Help<br>
+<br><br>
+## ❓ Help<br>
 - 스크롤바로 재생 구간을 조정할 때에는 반드시 마우스를 이용해야 합니다. 현재 버전에서는 키보드를 지원하지 않습니다.<br>
 - 알려진 버그(Known bug)가 존재하며 추후 업데이트될 예정입니다. 자세한 내용은 Releases 페이지에서 확인할 수 있습니다.<br>
+<br><br>
+## 👤 Authors<br>
+- stdsic — @https://github.com/stdsic/ColorFromPoint<br>
+<br><br>
+## 📚 Version History<br>
+- 0.1.0<br>
+  - 최초 릴리스<br>
+<br><br>
+## 🧾 License<br>
+이 프로젝트는 [MIT License](LICENSE)로 라이선스되어 있습니다.<br>
+자세한 정보는 LICENSE 파일을 참고하시기 바랍니다.<br>
 <br>
-👤 Authors<br>
-- stdsic — @https://github.com/stdsic/Bittypak<br>
