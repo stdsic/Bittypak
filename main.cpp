@@ -1125,7 +1125,7 @@ retry:
 
                 case 3:
                     {
-                        SetThreadExecutionState(ES_CONTINUOUS | ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED);
+                        SetThreadExecutionState(ES_DISPLAY_REQUIRED | ES_SYSTEM_REQUIRED);
                     }
                     break;
             }
