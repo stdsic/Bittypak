@@ -10,3 +10,4 @@ My
 *.wav
 *.mp3
 *.ico
+!assets/icons/boombox_icon.ico
