@@ -54,7 +54,7 @@ Windows Legacy API와 COM을 이용한 뮤직 플레이어입니다.<br>
 <br><br>
 ## 📄 Assets Attribution<br>
 이 프로젝트는 Flaticon의 Summer Pack 아이콘을 사용합니다.<br>
-- 이 아이콘은 Freepik에서 제작하였습니다(`https://www.flaticon.com`).<br>
+- 이 아이콘은 Graphix's Art가 제작하였습니다(`https://www.flaticon.com/kr/authors/graphixs-art`).<br>
 - Flaticon 기본 라이선스에 따라 라이선스가 부여됩니다.<br>
 - 아이콘은 PNG 형식으로 다운로드한 후 프로젝트에서 사용하기 위해 ICO 형식으로 변환하였습니다.<br>
-- 출처: <a href="https://www.flaticon.com/kr/free-icons/summer-875" title="summer icons">Summer icons created by Freepik - Flaticon</a>
+- 출처: <a href="https://www.flaticon.com/kr/free-icons/summer-875" title="summer icons">Summer icons created by Graphix's Art - Flaticon</a>
