@@ -21,6 +21,7 @@ Windows Legacy API와 COM을 이용한 뮤직 플레이어입니다.<br>
 - 파일 추가<br>
 - 플레이리스트 항목 보이기/숨기기<br>
 - 녹음 시작/정지<br>
+- 녹음 타이머 설정(v1.0.2)<br>
 - 스펙트럼 그리기 활성화/비활성화<br>
 <br><br>
 ## 🚀 Getting Started<br>
@@ -43,6 +44,8 @@ Windows Legacy API와 COM을 이용한 뮤직 플레이어입니다.<br>
 - stdsic — @https://github.com/stdsic/Bittypak<br>
 <br><br>
 ## 📚 Version History<br>
+- 1.0.2<br>
+  - 레코딩 타이머 기능 추가<br>
 - 1.0.1<br>
   - 화면 절전 방지 기능 추가(beta)<br>
 - 1.0.0<br>
