@@ -1,5 +1,6 @@
 #include "CustomButton.h"
 #include "Color.h"
+#include <wingdi.h>
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 
@@ -346,6 +347,19 @@ LRESULT CALLBACK CustomButtonProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARA
 						DeleteObject(SelectObject(hMemDC, hOldBrush));
 					}
 					break;
+
+                case TIMER:
+                    {
+                        WCHAR Text[16];
+                        wsprintf(Text, L"T");
+
+                        SIZE TextSize;
+                        GetTextExtentPoint32W(hMemDC, Text, wcslen(Text), &TextSize);
+
+						POINT Origin = { (crt.right - crt.left) / 2, (crt.bottom - crt.top) / 2 };
+                        TextOut(hMemDC, Origin.x - TextSize.cx / 2, Origin.y - TextSize.cy / 2, Text, wcslen(Text));
+                    }
+                    break;
 
 				case SPECTRUM:
 					{

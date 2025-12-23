@@ -15,6 +15,7 @@
 #define KEY_PATH_PLAYLIST           L"Software\\Bittypak\\InitInfo\\Playlist"
 #define INPUT_POPUP_TEMPLATE1       L"파일 이름을 입력하세요."
 #define INPUT_POPUP_TEMPLATE2       L"플레이리스트 이름을 입력하세요."
+#define INPUT_POPUP_TEMPLATE3       L"MM:SS 형식으로 타이머를 입력하세요."
 
 #define DEFAULT_MAINWINDOW_WIDTH	400
 #define DEFAULT_MAINWINDOW_HEIGHT	200
@@ -374,6 +375,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
     WCHAR PlaylistName[MAX_PATH];
     static HBRUSH hBkBrush;
 
+    static int MM, SS;
+    static BOOL bRecordTimer;
+
     switch (iMessage){
         case WM_CREATE:
             {
@@ -395,7 +399,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
                 hBtns[5] = CreateWindow(BTN_CLASS_NAME, NULL, WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | CHECK, 0, 0, 0, 0, hWnd, (HMENU)(INT_PTR)(IDC_BTNFIRST + 5), GetModuleHandle(NULL), NULL);
                 hBtns[6] = CreateWindow(BTN_CLASS_NAME, NULL, WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | CHECK, 0, 0, 0, 0, hWnd, (HMENU)(INT_PTR)(IDC_BTNFIRST + 6), GetModuleHandle(NULL), NULL);
-                hBtns[7] = CreateWindow(BTN_CLASS_NAME, NULL, WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | CHECK, 0, 0, 0, 0, hWnd, (HMENU)(INT_PTR)(IDC_BTNFIRST + 7), GetModuleHandle(NULL), NULL);
+                hBtns[7] = CreateWindow(BTN_CLASS_NAME, NULL, WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | PUSH, 0, 0, 0, 0, hWnd, (HMENU)(INT_PTR)(IDC_BTNFIRST + 7), GetModuleHandle(NULL), NULL);
+                hBtns[8] = CreateWindow(BTN_CLASS_NAME, NULL, WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | CHECK, 0, 0, 0, 0, hWnd, (HMENU)(INT_PTR)(IDC_BTNFIRST + 8), GetModuleHandle(NULL), NULL);
 
                 hProgress = CreateWindow(SCROLLBAR_CLASS_NAME, NULL, WS_CHILD | WS_VISIBLE | CSS_HORZ, 0,0,0,0, hWnd, (HMENU)(INT_PTR)(IDC_SCRLFIRST), GetModuleHandle(NULL), NULL);
                 hVolume = CreateWindow(SCROLLBAR_CLASS_NAME, NULL, WS_CHILD | WS_VISIBLE | CSS_HORZ, 0, 0, 0, 0, hWnd, (HMENU)(INT_PTR)(IDC_SCRLFIRST + 1), GetModuleHandle(NULL), NULL);
@@ -620,6 +625,37 @@ retry:
                     break;
 
                 case IDC_BTNFIRST + 7:
+                    if(HIWORD(wParam) == PRESSED){
+                        // Input Box: Format(MM:SS)
+                        WCHAR RecordTimer[0x10] = L"";
+                        if(ShowInputPopup(hWnd, RecordTimer, 16, 2)){
+                            WCHAR *ptr = RecordTimer;
+                            MM = 0, SS = 0;
+
+                            while(*ptr >= L'0' && *ptr <= L'9'){
+                                MM *= 10;
+                                MM += *ptr - L'0';
+                                ptr++;
+                            }
+
+                            if(*ptr == L':'){ ptr++; }
+
+                            while(*ptr >= L'0' && *ptr <= L'9'){
+                                SS *= 10;
+                                SS += *ptr - L'0';
+                                ptr++;
+                            }
+
+                            if(!(MM == 0 && SS == 0) && (MM > 0 || SS > 0)){
+                                bRecordTimer = TRUE;
+                                SendMessage(hBtns[6], CBM_SETSTATE, DOWN, (LPARAM)0);
+                                SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 6, PRESSED), (LPARAM)hBtns[6]);
+                            }
+                        }
+                    }
+                    break;
+
+                case IDC_BTNFIRST + 8:
                     if(HIWORD(wParam) == PRESSED){
                         bSpectrum = TRUE;
                         hSpectrumStopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
@@ -851,7 +887,7 @@ retry:
                 dwType = ReadRegistryData(HKEY_CURRENT_USER, KEY_PATH_POSITION, KEY_READ, L"bSpectrum", &bSpectrum, sizeof(LONG), TRUE);
                 if(bSpectrum){
                     SendMessage(hBtns[7], CBM_SETSTATE, DOWN, (LPARAM)0);
-                    SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 7, PRESSED), (LPARAM)hBtns[7]);
+                    SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 8, PRESSED), (LPARAM)hBtns[8]);
                 }
 
                 dwType = ReadRegistryData(HKEY_CURRENT_USER, KEY_PATH_PLAYLIST, KEY_READ, L"PlaylistCount", &nCount, sizeof(LONG), 0);
@@ -1120,6 +1156,14 @@ retry:
                         int mm = (int)((Seconds - hh * 3600) / 60);
                         int ss = (int)(Seconds) % 60;
                         wsprintf(TimeLine, L"[%02d:%02d:%02d / %02d:%02d:%02d]", 0, 0, 0, hh, mm, ss);
+
+                        if(bRecordTimer){
+                            if(mm >= MM && ss >= SS + 1){
+                                bRecordTimer = FALSE;
+                                SendMessage(hBtns[6], CBM_SETSTATE, UP, (LPARAM)0);
+                                SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 6, RELEASED), (LPARAM)hBtns[6]);
+                            }
+                        }
                     }
                     break;
 
@@ -1907,27 +1951,43 @@ DWORD WINAPI SpectrumThread(LPVOID lParam){
     return 0;
 }
 
+
+typedef struct _INPUT_POPUP_DATA {
+    WCHAR* pOut;
+    const WCHAR* Title;
+    const WCHAR* Prompt;
+    int Mode;
+} INPUT_POPUP_DATA;
+
 LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam){
     static WCHAR Title[MAX_PATH];
+    LPCREATESTRUCT cs;
+    INPUT_POPUP_DATA *pData;
 
     switch(iMessage){
         case WM_CREATE:
-            GetWindowText(hWnd, Title, MAX_PATH);
+            cs = (LPCREATESTRUCT)lParam;
+            pData = (INPUT_POPUP_DATA*)cs->lpCreateParams;
+            SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)pData);
 
-            SetWindowLongPtr(hWnd, GWLP_USERDATA, (LONG_PTR)((LPCREATESTRUCT)lParam)->lpCreateParams);
-            CreateWindow(L"edit", L"", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL, 10, 10, 260, 24, hWnd, (HMENU)1001, NULL, NULL);
-            CreateWindow(L"button", L"저장", WS_CHILD | WS_VISIBLE, 30, 45, 80, 24, hWnd, (HMENU)1002, NULL, NULL);
-            CreateWindow(L"button", L"취소", WS_CHILD | WS_VISIBLE, 120, 45, 80, 24, hWnd, (HMENU)1003, NULL, NULL);
+            wcscpy(Title, pData->Title);
+            CreateWindow(L"static", pData->Prompt, WS_CHILD | WS_VISIBLE, 10, 10, 290, 20, hWnd, (HMENU)2001, NULL, NULL);
+            CreateWindow(L"edit", L"", WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL, 10, 35, 290, 24, hWnd, (HMENU)1001, NULL, NULL);
+            CreateWindow(L"button", L"확인", WS_CHILD | WS_VISIBLE, 60, 70, 80, 24, hWnd, (HMENU)1002, NULL, NULL);
+            CreateWindow(L"button", L"취소", WS_CHILD | WS_VISIBLE, 160, 70, 80, 24, hWnd, (HMENU)1003, NULL, NULL);
             return 0;
 
         case WM_COMMAND:
             if(LOWORD(wParam) == 1002){
-                WCHAR* pOut = (WCHAR*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+                pData = (INPUT_POPUP_DATA*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
+
                 HWND hEdit = GetDlgItem(hWnd, 1001);
-                GetWindowText(hEdit, pOut, MAX_PATH);
-                if(wcscmp(Title, INPUT_POPUP_TEMPLATE1) == 0){
-                    wcscat(pOut, L".wav");
+                GetWindowText(hEdit, pData->pOut, MAX_PATH);
+
+                if(pData->Mode == 0){
+                    wcscat(pData->pOut, L".wav");
                 }
+
                 DestroyWindow(hWnd);
             }
 
@@ -1954,16 +2014,37 @@ BOOL ShowInputPopup(HWND hParent, WCHAR* Out, int MaxLength, int iMode){
         RegisterClass(&wc);
     }
 
-    HWND hPopup = NULL;
+    INPUT_POPUP_DATA data = { 0 };
+
+    data.pOut = Out;
+    data.Mode = iMode;
+
     switch(iMode){
         case 0:
-            hPopup = CreateWindowEx(WS_EX_TOOLWINDOW, INPUT_POPUP_CLASS_NAME, INPUT_POPUP_TEMPLATE1, WS_POPUP | WS_BORDER | WS_CAPTION, 100, 100, 280, 110, hParent, NULL, GetModuleHandle(NULL), (LPVOID)Out);
+            data.Title  = L"녹음 파일 저장";
+            data.Prompt = INPUT_POPUP_TEMPLATE1;
             break;
 
         case 1:
-            hPopup = CreateWindowEx(WS_EX_TOOLWINDOW, INPUT_POPUP_CLASS_NAME, INPUT_POPUP_TEMPLATE2, WS_POPUP | WS_BORDER | WS_CAPTION, 100, 100, 280, 110, hParent, NULL, GetModuleHandle(NULL), (LPVOID)Out);
+            data.Title  = L"플레이리스트 이름 설정";
+            data.Prompt = INPUT_POPUP_TEMPLATE2;
+            break;
+
+        case 2:
+            data.Title  = L"타이머 설정";
+            data.Prompt = INPUT_POPUP_TEMPLATE3;
             break;
     }
+
+    HWND hPopup = CreateWindowEx(
+        WS_EX_TOOLWINDOW,
+        INPUT_POPUP_CLASS_NAME,
+        data.Title,
+        WS_POPUP | WS_BORDER | WS_CAPTION,
+        100, 100, 320, 130,
+        hParent, NULL, GetModuleHandle(NULL),
+        (LPVOID)&data
+    );
 
     if(!hPopup){ return FALSE; }
 
