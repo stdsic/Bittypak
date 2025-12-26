@@ -589,6 +589,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                         hRecordStopEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
                         hRecordThread = CreateThread(NULL, 0, RecordThread, (LPVOID)NULL, 0, &dwThreadID[0]);
                     }else{
+                        bRecordTimer = FALSE;
                         SetEvent(hRecordStopEvent);
                         WaitForSingleObject(hRecordThread, INFINITE);
                         KillTimer(hWnd, 2);
