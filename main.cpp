@@ -441,7 +441,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                 InflateRect(&srt, -2, -2);
                 InflateRect(&trt, -2, -2);
                 if (PtInRect(&srt, Mouse)) {
-                    SendMessage(hWnd, WM_CLOSE, 0,0);
+                    DestroyWindow(hWnd);
                 }
                 if (PtInRect(&trt, Mouse)) {
                     ShowWindow(hWnd, SW_MINIMIZE);
