@@ -1159,7 +1159,10 @@ retry:
                         wsprintf(TimeLine, L"[%02d:%02d:%02d / %02d:%02d:%02d]", 0, 0, 0, hh, mm, ss);
 
                         if(bRecordTimer){
-                            if(mm >= MM && ss >= SS){
+                            int HHH = MM / 60;
+                            int MMM = MM % 60;
+                            int SSS = SS % 60;
+                            if(hh >= HHH && mm >= MMM && ss >= SSS){
                                 InvalidateRect(hWnd, NULL, FALSE);
                                 bRecordTimer = FALSE;
                                 SendMessage(hBtns[6], CBM_SETSTATE, UP, (LPARAM)0);
