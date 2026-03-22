@@ -7,11 +7,12 @@ LDLIBS = -luser32 -lkernel32 -lgdi32 -lcomctl32 -lshcore -lcomctl32 -lmf -lmfpla
 LDHDR = -I C:\vcpkg\installed\x64-mingw-static\include
 LDLIBF = -L C:\vcpkg\installed\x64-mingw-static\lib
 
-HDRDIR	= .
-SRCDIR	= .
-RSRCDIR	= .
-OBJDIR	= .
-EXEDIR	= .
+HDRDIR	= include
+SRCDIR	= src
+RSRCDIR	= res
+OBJDIR	= obj
+EXEDIR	= bin
+ASSETSDIR = assets/icons/
 
 HDRS = $(notdir $(wildcard $(HDRDIR)/*.h))
 SRCS_EXTRA = $(notdir $(wildcard $(SRCDIR)/*.cpp))
@@ -32,10 +33,10 @@ $(TARGET): $(MAIN) $(OUT_OBJS) $(OUT_RES)
 
 vpath %.cpp $(SRCDIR)
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp
-	$(CC) -c $< -o $@ -municode
+	$(CC) -c $< -o $@ $(OPT) $(LDHDR) $(LDLIBF) $(LDLIBS)
 
 $(OUT_RES): $(OUT_RSRCS)
-	windres $(OUT_RSRCS) -O coff -o $@ -I$(HDRDIR)
+	windres $(OUT_RSRCS) -O coff -o $@ -I$(HDRDIR) -I$(ASSETSDIR)
 
 pr:
 	@echo "hdr list = $(HDRS)"

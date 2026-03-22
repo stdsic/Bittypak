@@ -1,5 +1,5 @@
-#include "CustomButton.h"
-#include "Color.h"
+#include "..\\include\\CustomButton.h"
+#include "..\\include\\Color.h"
 #include <wingdi.h>
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 #define min(a,b) (((a) < (b)) ? (a) : (b))

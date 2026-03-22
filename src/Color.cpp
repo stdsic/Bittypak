@@ -1,4 +1,4 @@
-#include "Color.h"
+#include "..\\include\\Color.h"
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 #define CLAMP(Min, Max, N) (((N) < (Min)) ? (Min) : ((N) < (Max)) ? (N) : (Max));

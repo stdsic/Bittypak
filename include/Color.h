@@ -56,7 +56,6 @@ public:
 	static const Color Magenta;
 
 public:
-	/* TODO : 연산자 함수 추가 필요 */
 	const Color operator +(const Color& Other) const {
 		return Color(
 				_R + Other._R,
