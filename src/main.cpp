@@ -1363,10 +1363,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                 {
                     ClientToScreen(hListView, &Mouse);
                     HMENU hMenu = CreatePopupMenu();
-                    AppendMenu(hMenu, MF_STRING, IDM_CREATE_PLAYLIST, L"새 재생목록 생성");
-                    AppendMenu(hMenu, MF_STRING, IDM_DELETE_PLAYLIST, L"현재 재생목록 삭제");
-                    AppendMenu(hMenu, MF_STRING | ((bRandom == FALSE) ? MF_UNCHECKED : MF_CHECKED), IDM_RANDOM_PLAY, L"랜덤 재생");
-                    AppendMenu(hMenu, MF_STRING | ((bLoop == FALSE) ? MF_UNCHECKED : MF_CHECKED), IDM_LOOP_PLAY, L"반복 재생");
+                    AppendMenu(hMenu, MF_STRING, IDM_CREATE_PLAYLIST, L"Create new playlist");
+                    AppendMenu(hMenu, MF_STRING, IDM_DELETE_PLAYLIST, L"Delete current playlist");
+                    AppendMenu(hMenu, MF_STRING | ((bRandom == FALSE) ? MF_UNCHECKED : MF_CHECKED), IDM_RANDOM_PLAY, L"Shuffle play");
+                    AppendMenu(hMenu, MF_STRING | ((bLoop == FALSE) ? MF_UNCHECKED : MF_CHECKED), IDM_LOOP_PLAY, L"Repeat play");
                     TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, Mouse.x, Mouse.y, 0, hWnd, NULL);
                     DestroyMenu(hMenu);
                 }
@@ -1390,11 +1390,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
                     ClientToScreen(hListView, &Mouse);
                     HMENU hMenu = CreatePopupMenu();
-                    AppendMenu(hMenu, MF_STRING, IDM_CREATE_PLAYLIST, L"새 재생목록 생성");
-                    AppendMenu(hMenu, MF_STRING, IDM_DELETE_PLAYLIST, L"현재 재생목록 삭제");
-                    AppendMenu(hMenu, MF_STRING | ((bRandom == FALSE) ? MF_UNCHECKED : MF_CHECKED), IDM_RANDOM_PLAY, L"랜덤 재생");
-                    AppendMenu(hMenu, MF_STRING | ((bLoop == FALSE) ? MF_UNCHECKED : MF_CHECKED), IDM_LOOP_PLAY, L"반복 재생");
-                    AppendMenu(hMenu, MF_STRING, IDM_ITEM_DELETE, L"삭제");
+                    AppendMenu(hMenu, MF_STRING, IDM_CREATE_PLAYLIST, L"Create new playlist");
+                    AppendMenu(hMenu, MF_STRING, IDM_DELETE_PLAYLIST, L"Delete current playlist");
+                    AppendMenu(hMenu, MF_STRING | ((bRandom == FALSE) ? MF_UNCHECKED : MF_CHECKED), IDM_RANDOM_PLAY, L"Shuffle play");
+                    AppendMenu(hMenu, MF_STRING | ((bLoop == FALSE) ? MF_UNCHECKED : MF_CHECKED), IDM_LOOP_PLAY, L"Repeat play");
+                    AppendMenu(hMenu, MF_STRING, IDM_ITEM_DELETE, L"Remove");
                     TrackPopupMenu(hMenu, TPM_RIGHTBUTTON, Mouse.x, Mouse.y, 0, hWnd, NULL);
                     DestroyMenu(hMenu);
                 }
