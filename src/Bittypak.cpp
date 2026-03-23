@@ -379,7 +379,7 @@ BOOL ShowInputPopup(HWND hParent, WCHAR* Out, int MaxLength, int iMode){
         POPUP_CLASS_NAME,
         data.Title,
         WS_POPUP | WS_BORDER | WS_CAPTION,
-        100, 100, 320, 130,
+        100, 100, 380, 150,
         hParent, NULL, GetModuleHandle(NULL),
         (LPVOID)&data
     );
@@ -870,9 +870,9 @@ LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPAR
                     L"static", 
                     pData->Prompt, 
                     WS_CHILD | WS_VISIBLE,
-                    10, 10, 290, 20, 
+                    10, 10, 360, 20, 
                     hWnd, 
-                    (HMENU)2001, 
+                    (HMENU)2001,
                     NULL, 
                     NULL
                     );
@@ -881,7 +881,7 @@ LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPAR
                     L"edit",
                     L"",
                     WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-                    10, 35, 290, 24,
+                    10, 40, 360, 24,
                     hWnd,
                     (HMENU)1001,
                     NULL, 
@@ -892,7 +892,7 @@ LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPAR
                     L"button",
                     L"확인",
                     WS_CHILD | WS_VISIBLE,
-                    60, 70, 80, 24, 
+                    85, 85, 80, 24, 
                     hWnd,
                     (HMENU)1002,
                     NULL, 
@@ -903,7 +903,7 @@ LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPAR
                     L"button",
                     L"취소",
                     WS_CHILD | WS_VISIBLE,
-                    160, 70, 80, 24, 
+                    190, 85, 80, 24, 
                     hWnd, 
                     (HMENU)1003, 
                     NULL,

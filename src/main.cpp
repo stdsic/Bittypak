@@ -696,6 +696,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                     break;
 
                 case IDM_CREATE_PLAYLIST:
+                    memset(RemainFileName, 0, sizeof(RemainFileName));
                     if(ShowInputPopup(hWnd, RemainFileName, MAX_PATH, 1))
                     {
                         SavePlaylist(hWnd);
