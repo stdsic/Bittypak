@@ -1,4 +1,4 @@
-![Bittypak 실행 화면](./assets/Images/Bittypak-demo3.gif)
+![Bittypak 실행 화면](./assets/Images/Bittypak-demo4.gif)
 # 📌 Bittypak<br>
 This is a music player built using the Windows Legacy API and COM.<br>
 The project is released under the MIT License, allowing anyone to freely use, modify, and distribute it. It can be used for both personal and commercial purposes.<br>
@@ -22,7 +22,7 @@ The buttons, in order, provide the following features:<br>
 - Enable / Disable spectrum visualization
 
 <br><br>
-![Bittypak 실행 화면](./assets/Images/Bittypak-demo4.gif)
+![Bittypak 실행 화면](./assets/Images/Bittypak-demo3.gif)
 ## 🚀 Getting Started<br>
 ### 🔧 Dependencies<br>
 - Windows 10 or later<br>
