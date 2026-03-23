@@ -1,4 +1,4 @@
-![Bittypak 실행 화면](Assets/Images/Bittypak-demo3.gif)
+![Bittypak 실행 화면](Assets/Images/Bittypak-demo2.gif)
 # 📌 Bittypak<br>
 Windows Legacy API와 COM을 이용한 뮤직 플레이어입니다.<br>
 이 프로젝트는 MIT 라이선스 하에 제공되어 누구나 자유롭게 사용, 수정, 배포할 수 있습니다. 개인 또는 상업적 용도로도 활용이 가능합니다.<br>
@@ -33,7 +33,6 @@ Windows Legacy API와 COM을 이용한 뮤직 플레이어입니다.<br>
 압축 해제 후 `Bittypak.exe` 또는 `BittypakInstaller.exe`를 실행합니다.<br>
 설치 파일(BittypakInstaller.exe)을 다운로드한 경우 안내에 따라 안전하게 실행 파일(Bittypak.exe)을 설치하시면 됩니다.<br>
 <br>
-![Bittypak 실행 화면](Assets/Images/Bittypak-demo4.gif)
 ### ▶️ Executing program<br>
 - Bittypak.exe<br>
 <br><br>
