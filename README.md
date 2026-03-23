@@ -1,72 +1,70 @@
 ![Bittypak 실행 화면](./assets/Images/Bittypak-demo3.gif)
 # 📌 Bittypak<br>
-Windows Legacy API와 COM을 이용한 뮤직 플레이어입니다.<br>
-이 프로젝트는 MIT 라이선스 하에 제공되어 누구나 자유롭게 사용, 수정, 배포할 수 있습니다. 개인 또는 상업적 용도로도 활용이 가능합니다.<br>
+This is a music player built using the Windows Legacy API and COM.<br>
+The project is released under the MIT License, allowing anyone to freely use, modify, and distribute it. It can be used for both personal and commercial purposes.<br>
 <br><br>
 ## 📝 Description<br>
-"Bittypak"은 wav 및 mp3 포맷을 지원하는 뮤직 플레이어입니다.<br>
-시스템과 관련된 기능을 일부 사용하고 있으며 사용자가 작업한 내용을 기록하기 위한 용도로 레지스트리를 활용합니다.<br>
-예를 들어, 프로그램이 종료되기 전 마지막 위치나 사용자가 불러온 미디어 파일을 기억해두기 위해 레지스트리에 데이터와 키를 추가하여 관리합니다.<br>
-이외에 시스템 관련 설정은 없으며 DRAG & DROP을 지원합니다.<br>
-<br>
-프로그램은 스크롤바와 9개의 버튼 컨트롤로 구성됩니다.<br>
-버튼에는 여러가지 그림이 그려져 있는데 해당 버튼이 가진 기능을 보여줍니다.<br>
-<br>
-이는 차례대로 다음과 같습니다.<br>
-<br>
-- 중단<br>
-- 재생/정지<br>
-- 이전 곡<br>
-- 다음 곡<br>
-- 파일 추가<br>
-- 플레이리스트 항목 보이기/숨기기<br>
-- 녹음 시작/정지<br>
-- 녹음 타이머 설정(v1.0.2)<br>
-- 스펙트럼 그리기 활성화/비활성화<br>
+Bittypak is a music player that supports WAV and MP3 formats.<br>
+It uses several system‑related features and stores user‑specific data in the Windows Registry.<br>
+For example, the application saves the last playback position and the most recently opened media files by writing keys and values to the registry before the program exits.<br>
+Aside from this, no additional system settings are modified, and the program supports drag‑and‑drop.<br><br>
+The interface consists of a scrollbar and nine button controls.<br>
+Each button displays an icon that represents its function.<br>
+The buttons, in order, provide the following features:<br>
+- Stop
+- Play / Pause
+- Previous track
+- Next track
+- Add file
+- Show / Hide playlist items
+- Start / Stop recording
+- Set recording timer (v1.0.2)
+- Enable / Disable spectrum visualization
+
 <br><br>
 ![Bittypak 실행 화면](./assets/Images/Bittypak-demo4.gif)
 ## 🚀 Getting Started<br>
 ### 🔧 Dependencies<br>
-- Windows 10 이상<br>
+- Windows 10 or later<br>
 <br><br>
 ### 📥 Installing<br>
-[Releases](https://github.com/stdsic/Bittypak/releases) 페이지에서 최신 버전을 확인하실 수 있습니다.<br>
-압축 해제 후 `Bittypak.exe` 또는 `BittypakInstaller.exe`를 실행합니다.<br>
-설치 파일(BittypakInstaller.exe)을 다운로드한 경우 안내에 따라 안전하게 실행 파일(Bittypak.exe)을 설치하시면 됩니다.<br>
+[Releases](https://github.com/stdsic/Bittypak/releases) You can check the latest version on the release page.<br>
+After extracting the archive, run either `Bittypak.exe` or `BittypakInstaller.exe`.<br>
+If you downloaded the installer (BittypakInstaller.exe), simply follow the instructions to safely install the executable (Bittypak.exe).<br>
 <br>
 ### ▶️ Executing program<br>
 - Bittypak.exe<br>
 <br><br>
 ## ❓ Help<br>
-- 스크롤바로 재생 구간을 조정할 때에는 반드시 마우스를 이용해야 합니다. 현재 버전에서는 키보드를 지원하지 않습니다.<br>
-- 알려진 버그(Known bug)가 존재하며 추후 업데이트될 예정입니다. 자세한 내용은 Releases 페이지에서 확인할 수 있습니다.<br>
+- When adjusting the playback position using the scrollbar, you must use the mouse. Keyboard input is not supported in the current version.<br>
+- A known bug exists and will be addressed in a future update. For more details, please refer to the Releases page.<br>
 <br><br>
 ## 👤 Authors<br>
 - stdsic — @https://github.com/stdsic/Bittypak<br>
 <br><br>
 ## 📚 Version History<br>
 - 1.0.5<br>
-  - 알려진 버그 수정: 플레이리스트 관리 및 마지막 위치/상태 저장 로직 변경
-  - 윈도우 스타일 변경: TopMost 확장 스타일 추가
+  - Fixed known bug: updated playlist management and logic for saving last position/state
+  - Updated window style: added TopMost extended style
 - 1.0.4<br>
-  - 타이머 오류 수정<br>
+  - Fixed timer issue<br>
 - 1.0.3<br>
-  - 타이머 오류 수정<br>
-  - 프로그램 종료 처리 수정<br>
+  - Fixed timer issue<br>
+  - Updated application shutdown handling<br>
 - 1.0.2<br>
-  - 녹음 타이머 기능 추가<br>
+  - Added recording timer feature<br>
 - 1.0.1<br>
-  - 화면 절전 방지 기능 추가(beta)<br>
+  - Added screen‑sleep prevention feature (beta)<br>
 - 1.0.0<br>
-  - 최초 릴리스(beta)<br>
+  - Initial release (beta)<br>
 <br><br>
 ## 🧾 License<br>
-이 프로젝트는 [MIT License](LICENSE)로 라이선스되어 있습니다.<br>
-자세한 정보는 LICENSE 파일을 참고하시기 바랍니다.<br>
+This project is licensed under the [MIT License](LICENSE).<br>
+For more details, please refer to the LICENSE file.<br>
 <br><br>
 ## 📄 Assets Attribution<br>
-이 프로젝트는 Flaticon의 Summer Pack 아이콘을 사용합니다.<br>
-- 이 아이콘은 Graphix's Art가 제작하였습니다(`https://www.flaticon.com/kr/authors/graphixs-art`).<br>
-- Flaticon 기본 라이선스에 따라 라이선스가 부여됩니다.<br>
-- 아이콘은 PNG 형식으로 다운로드한 후 프로젝트에서 사용하기 위해 ICO 형식으로 변환하였습니다.<br>
-- 출처: <a href="https://www.flaticon.com/kr/packs/summer-875" title="summer icons">Summer icons created by Graphix's Art - Flaticon</a>
+This project uses the Summer Pack icons from Flaticon.<br>
+- These icons were created by Graphix's Art (`https://www.flaticon.com/kr/authors/graphixs-art`).<br>
+- They are licensed under the standard Flaticon Basic License.<br>
+- The icons were originally downloaded in PNG format and then converted to ICO format for use in this project.<br>
+- Source: Summer icons created by Graphix's Art – Flaticon "https://www.flaticon.com/kr/packs/summer-875"
