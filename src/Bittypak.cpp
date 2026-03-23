@@ -176,7 +176,7 @@ void OpenFiles(HWND hWnd)
     {
         if(CommDlgExtendedError() == FNERR_BUFFERTOOSMALL)
         {
-            MessageBox(HWND_DESKTOP, L"선택한 파일이 너무 많습니다.", L"Error", MB_OK | MB_ICONERROR);
+            MessageBox(HWND_DESKTOP, L"Too many files are selected.", L"Error", MB_OK | MB_ICONERROR);
         }
     }
 }
@@ -359,17 +359,17 @@ BOOL ShowInputPopup(HWND hParent, WCHAR* Out, int MaxLength, int iMode){
 
     switch(iMode){
         case 0:
-            data.Title  = L"녹음 파일 저장";
+            data.Title  = L"Save audio recording";
             data.Prompt = INPUT_POPUP_TEMPLATE1;
             break;
 
         case 1:
-            data.Title  = L"플레이리스트 이름 설정";
+            data.Title  = L"Set playlist name";
             data.Prompt = INPUT_POPUP_TEMPLATE2;
             break;
 
         case 2:
-            data.Title  = L"타이머 설정";
+            data.Title  = L"Set timer";
             data.Prompt = INPUT_POPUP_TEMPLATE3;
             break;
     }
@@ -890,7 +890,7 @@ LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPAR
 
             CreateWindow(
                     L"button",
-                    L"확인",
+                    L"OK",
                     WS_CHILD | WS_VISIBLE,
                     85, 85, 80, 24, 
                     hWnd,
@@ -901,7 +901,7 @@ LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPAR
 
             CreateWindow(
                     L"button",
-                    L"취소",
+                    L"Cancel",
                     WS_CHILD | WS_VISIBLE,
                     190, 85, 80, 24, 
                     hWnd, 

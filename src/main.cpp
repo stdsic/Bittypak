@@ -37,7 +37,7 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int nCmdShow){
     AllocConsole();
     freopen("CONOUT$", "w", stdout);
     freopen("CONOUT$", "w", stderr);
-    printf("디버그 콘솔 활성화\n");
+    printf("Activate debug console\n");
 #endif
 
     HBRUSH hBkBrush = CreateSolidBrush(RGB(240, 250, 255));
@@ -400,7 +400,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                             if(CurrentItem != NULL && wcscmp(CurrentItem, L"") != 0)
                             {
                                 MessageBox(hWnd, CurrentItem, L"?", MB_OK);
-                                if(IDYES == MessageBox(hWnd, L"파일을 찾을 수 없습니다.\r\n해당 항목을 삭제하시겠습니까?", L"Error", MB_YESNO | MB_ICONERROR))
+                                if(IDYES == MessageBox(hWnd, L"The file cannot be found.\r\nDo you want to delete this item?", L"Error", MB_YESNO | MB_ICONERROR))
                                 {
                                     SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDM_ITEM_DELETE, 0), (LPARAM)0);
                                 }
@@ -550,7 +550,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                         {
                             if(GetFileAttributes(FileName) != INVALID_FILE_ATTRIBUTES)
                             {
-                                int ret = MessageBox(HWND_DESKTOP, L"이미 같은 이름의 파일이 존재합니다.\n덮어쓰시겠습니까?", L"Warning", MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2);
+                                int ret = MessageBox(HWND_DESKTOP, L"A file with the same name already exists.\nDo you want to overwrite it?", L"Question", MB_ICONINFORMATION | MB_ICONQUESTION | MB_YESNO | MB_DEFBUTTON2);
                                 
                                 if(ret != IDYES)
                                 {
@@ -562,7 +562,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                             {
                                 // 취소 버튼을 누르거나 파일 이름이 한 글자도 입력되지 않은 경우
                                 DWORD dwRet = GetLastError();
-                                wsprintf(Debug, L"파일 저장에 실패했습니다.\r\n에러 코드: 0x%08X", dwRet);
+                                wsprintf(Debug, L"Failed to save the file.\r\nError Code: 0x%08X", dwRet);
                                 MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK | MB_ICONERROR);
                             }
                         }
@@ -687,7 +687,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
                             if(bCurrent && bPlaying)
                             {
-                                MessageBox(HWND_DESKTOP, L"실행중인 파일은 삭제할 수 없습니다.", L"Information", MB_OK | MB_ICONINFORMATION);
+                                MessageBox(HWND_DESKTOP, L"Cannot delete a file that is currently in use.", L"Information", MB_OK | MB_ICONINFORMATION);
                                 continue;
                             }
 
@@ -1323,7 +1323,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
                             if(FAILED(hr))
                             {
-                                wsprintf(Debug, L"SetPosition 실패: 0x%08X", hr);
+                                wsprintf(Debug, L"SetPosition Failed: 0x%08X", hr);
                                 MessageBox(HWND_DESKTOP, Debug, L"Error", MB_OK);
                             }
 
