@@ -1,4 +1,4 @@
-![Bittypak 실행 화면](./Images/Bittypak-demo.gif)
+![Bittypak 실행 화면](Assets/Images/Bittypak-demo2.gif)
 # 📌 Bittypak<br>
 Windows Legacy API와 COM을 이용한 뮤직 플레이어입니다.<br>
 이 프로젝트는 MIT 라이선스 하에 제공되어 누구나 자유롭게 사용, 수정, 배포할 수 있습니다. 개인 또는 상업적 용도로도 활용이 가능합니다.<br>
