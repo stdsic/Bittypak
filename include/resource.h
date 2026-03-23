@@ -43,6 +43,9 @@
 #define WM_PLAYNEXT					WM_APP + 1
 #define WM_NEWPOSITION				WM_APP + 2
 
+// Mainwindow size & Registry Default Value
+#define DEFAULT_MAINWINDOW_WIDTH	400
+#define DEFAULT_MAINWINDOW_HEIGHT	200
 #define KEY_PATH_POSITION			L"Software\\Bittypak\\InitInfo\\LastPosition"
 #define KEY_PATH_PLAYLIST           L"Software\\Bittypak\\InitInfo\\Playlist"
 

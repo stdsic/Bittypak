@@ -1,37 +1,65 @@
-#include <windows.h>
+#include "..\\include\\resource.h"
+#include "..\\include\\RegistryUtility.h"
 
-BOOL WriteRegistryData(HKEY hParentKey, LPCWSTR lpszPath, DWORD dwDesired, LPCWSTR lpszKeyName, DWORD dwType, PVOID Data, size_t Size){
-	LONG	ret;
-	HKEY	hSubKey;
-	DWORD	dwDisposition;
+BOOL DeleteRegistryValues(HKEY hParentKey, LPCWSTR hSubKey)
+{
+    DWORD Index = 0;
+    WCHAR ValueName[0x100];
+    DWORD Length = 0x100;
 
-	ret = RegCreateKeyEx(
-			hParentKey,
-			lpszPath,
-			0,						// Reserved
-			NULL,					// Class
-			0,						// REG_OPTION_NON_VOLAILE
-			dwDesired,
-			NULL,					// LPSECURITY_ATTRIBUTES(Inherit)
-			&hSubKey,
-			&dwDisposition			// REG_CREATE_NEW_KEY, REG_OPENED_EXISTING_KEY
-	);
-	
-	// lpszKeyName이 NULL이면 키 이름(=Value)은 "(기본값)"으로 설정된다.
-	if(hSubKey){
-		ret = RegSetValueEx(
-				hSubKey,
-				lpszKeyName,
-				0,					// Reserved
-				dwType,
-				(CONST BYTE*)Data,
-				Size				// REG_SZ인 경우 NULL종료 문자 포함한 길이 전달
-		);
+    HKEY hKey;
+    RegOpenKeyEx(hParentKey, hSubKey, 0, KEY_READ | KEY_WRITE, &hKey);
 
-		RegCloseKey(hSubKey);
-	}
+    while(RegEnumValue(
+                hKey, 
+                Index,
+                ValueName, 
+                &Length, 
+                NULL,
+                NULL,
+                NULL, 
+                NULL
+                ) == ERROR_SUCCESS)
+    {
+        RegDeleteValue(hKey, ValueName);
+        Length = 0x100;
+    }
 
-	return (BOOL)(ret == ERROR_SUCCESS);
+    return TRUE;
+}
+
+BOOL WriteRegistryData(HKEY hParentKey, LPCWSTR hSubKey, DWORD dwDesired, LPCWSTR lpszKeyName, DWORD dwType, PVOID Data, size_t Size){
+    LONG	ret;
+    HKEY	hOpenKey;
+    DWORD	dwDisposition;
+
+    ret = RegCreateKeyEx(
+            hParentKey,
+            hSubKey,
+            0,						// Reserved
+            NULL,					// Class
+            0,						// REG_OPTION_NON_VOLAILE
+            dwDesired,
+            NULL,					// LPSECURITY_ATTRIBUTES(Inherit)
+            &hOpenKey,
+            &dwDisposition			// REG_CREATE_NEW_KEY, REG_OPENED_EXISTING_KEY
+            );
+
+    // lpszKeyName이 NULL이면 키 이름(=Value)은 "(기본값)"으로 설정된다.
+    if(hSubKey){
+        ret = RegSetValueEx(
+                hOpenKey,
+                lpszKeyName,
+                0,					// Reserved
+                dwType,
+                (CONST BYTE*)Data,
+                Size				// REG_SZ인 경우 NULL종료 문자 포함한 길이 전달
+                );
+
+        RegCloseKey(hOpenKey);
+    }
+
+    return (BOOL)(ret == ERROR_SUCCESS);
 }
 
 //	REG_SZ:								null-terminated string (문자열)
@@ -46,46 +74,46 @@ BOOL WriteRegistryData(HKEY hParentKey, LPCWSTR lpszPath, DWORD dwDesired, LPCWS
 //	REG_FULL_RESOURCE_DESCRIPTOR:		full resource descriptor (자원 설명자)
 //	REG_RESOURCE_REQUIREMENTS_LIST:		resource requirements list (자원 요구 사항 목록)
 
-DWORD ReadRegistryData(HKEY hParentKey, LPCWSTR lpszPath, DWORD dwDesired, LPCWSTR lpszKeyName, PVOID Return, DWORD Size, INT_PTR nDefault){
-	LONG ret;
-	DWORD dwType, dwcbData = Size;
+DWORD ReadRegistryData(HKEY hParentKey, LPCWSTR hSubKey, DWORD dwDesired, LPCWSTR lpszKeyName, PVOID Return, DWORD Size, INT_PTR nDefault){
+    LONG ret;
+    DWORD dwType, dwcbData = Size;
 
-	HKEY	hSubKey;
-	DWORD	dwDisposition;
+    HKEY	hOpenKey;
+    DWORD	dwDisposition;
 
-	ret = RegOpenKeyEx(
-			hParentKey,
-			lpszPath,
-			0,				 // ulOptions
-			dwDesired,
-			&hSubKey
-	);
+    ret = RegOpenKeyEx(
+            hParentKey,
+            hSubKey,
+            0,				 // ulOptions
+            dwDesired,
+            &hOpenKey
+            );
 
-	// ret = RegCreateKeyEx(
-	//		ParentKey,
-	//		lpszPath,
-	//		0,						// Reserved
-	//		NULL,					// Class
-	//		0,						// REG_OPTION_NON_VOLAILE
-	//		dwDesired,
-	//		NULL,					// LPSECURITY_ATTRIBUTES(Inherit)
-	//		&hSubKey,
-	//		&dwDisposition			// REG_CREATE_NEW_KEY, REG_OPENED_EXISTING_KEY
-	// );
+    // ret = RegCreateKeyEx(
+    //		ParentKey,
+    //		hSubKey,
+    //		0,						// Reserved
+    //		NULL,					// Class
+    //		0,						// REG_OPTION_NON_VOLAILE
+    //		dwDesired,
+    //		NULL,					// LPSECURITY_ATTRIBUTES(Inherit)
+    //		&hOpenKey,
+    //		&dwDisposition			// REG_CREATE_NEW_KEY, REG_OPENED_EXISTING_KEY
+    // );
 
-	// Get Type & cb
-	// 버퍼를 지정했는데 크기가 충분하지 않으면 ERROR_MORE_DATA를 반환하고 필요한 버퍼 크기를 dwcbData에 저장한다.
-	// 버퍼를 지정하지 않고 마지막 인수인 dwcbData를 지정한 경우 ERROR_SUCCESS를 반환하고 데이터 크기를 dwcbData에 바이트 단위로 저장한다.
-	// lpszKeyName이 레지스트리에 없으면 ERROR_FILE_NOT_FOUND를 반환하고 버퍼에 아무런 값도 저장하지 않는다.
-	if(hSubKey != NULL){
-		// dwcbData는 입출력용 인수이므로 호출시 전달되는 버퍼의 크기를 입력해야 한다.
-		ret = RegQueryValueEx(hSubKey, lpszKeyName, 0, &dwType, (LPBYTE)Return, &dwcbData);
-		RegCloseKey(hSubKey);
-	}
+    // Get Type & cb
+    // 버퍼를 지정했는데 크기가 충분하지 않으면 ERROR_MORE_DATA를 반환하고 필요한 버퍼 크기를 dwcbData에 저장한다.
+    // 버퍼를 지정하지 않고 마지막 인수인 dwcbData를 지정한 경우 ERROR_SUCCESS를 반환하고 데이터 크기를 dwcbData에 바이트 단위로 저장한다.
+    // lpszKeyName이 레지스트리에 없으면 ERROR_FILE_NOT_FOUND를 반환하고 버퍼에 아무런 값도 저장하지 않는다.
+    if(hOpenKey != NULL){
+        // dwcbData는 입출력용 인수이므로 호출시 전달되는 버퍼의 크기를 입력해야 한다.
+        ret = RegQueryValueEx(hOpenKey, lpszKeyName, 0, &dwType, (LPBYTE)Return, &dwcbData);
+        RegCloseKey(hOpenKey);
+    }
 
-	if(ret != ERROR_SUCCESS){
-		*((INT_PTR*)Return) = nDefault;
-	}
+    if(ret != ERROR_SUCCESS){
+        *((INT_PTR*)Return) = nDefault;
+    }
 
-	return (((ret) == ERROR_SUCCESS) ? (dwType) : REG_NONE);
+    return (((ret) == ERROR_SUCCESS) ? (dwType) : REG_NONE);
 }

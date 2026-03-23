@@ -1,4 +1,5 @@
 #include "..\\include\\Bittypak.h"
+#include "..\\include\\RegistryUtility.h"
 #define LAST_ITEM_INDEX         100000
 #define POPUP_CLASS_NAME		L"InputPopup"
 #define DEFAULT_PLAYLIST_NAME   L"Default Playlist"
@@ -457,6 +458,8 @@ void SavePlaylist(HWND hWnd)
     WCHAR PATH[MAX_PATH];
     wsprintf(PATH, L"%s\\%s", KEY_PATH_PLAYLIST, PlaylistName);
 
+    DeleteRegistryValues(HKEY_CURRENT_USER, PATH);
+
     WriteRegistryData(
             HKEY_CURRENT_USER,
             PATH,
@@ -607,6 +610,132 @@ void LoadPlaylist(HWND hWnd)
     }
 }
 
+void SavePosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath)
+{
+    WINDOWPLACEMENT WindowPlacement = {
+        .length = sizeof(WINDOWPLACEMENT),
+    };
+
+    GetWindowPlacement(hWnd, &WindowPlacement);
+    WriteRegistryData(
+            hKey,
+            lpszPath,
+            KEY_WRITE,
+            L"CurrentState",
+            REG_DWORD,
+            &WindowPlacement.showCmd,
+            sizeof(UINT)
+            );
+
+    WriteRegistryData(
+            hKey,
+            lpszPath,
+            KEY_WRITE,
+            L"Left",
+            REG_DWORD,
+            &WindowPlacement.rcNormalPosition.left,
+            sizeof(LONG)
+            );
+
+    WriteRegistryData(
+            hKey,
+            lpszPath,
+            KEY_WRITE,
+            L"Top",
+            REG_DWORD,
+            &WindowPlacement.rcNormalPosition.top,
+            sizeof(LONG)
+            );
+
+    WriteRegistryData(
+            hKey, 
+            lpszPath,
+            KEY_WRITE,
+            L"Right",
+            REG_DWORD,
+            &WindowPlacement.rcNormalPosition.right, 
+            sizeof(LONG)
+            );
+
+    WriteRegistryData(
+            hKey,
+            lpszPath,
+            KEY_WRITE,
+            L"Bottom", 
+            REG_DWORD,
+            &WindowPlacement.rcNormalPosition.bottom,
+            sizeof(LONG)
+            );
+}
+
+void LoadPosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath)
+{
+
+    WINDOWPLACEMENT WindowPlacement = {
+        .length = sizeof(WINDOWPLACEMENT),
+        .flags = 0,
+    };
+
+    DWORD dwType;
+    dwType = ReadRegistryData(
+            hKey,
+            lpszPath,
+            KEY_READ,
+            L"CurrentState",
+            &WindowPlacement.showCmd,
+            sizeof(UINT),
+            SW_SHOW
+            );
+
+    dwType = ReadRegistryData(
+            hKey,
+            lpszPath,
+            KEY_READ,
+            L"Left",
+            &WindowPlacement.rcNormalPosition.left,
+            sizeof(LONG),
+            30
+            );
+
+    dwType = ReadRegistryData(
+            hKey, 
+            lpszPath,
+            KEY_READ,
+            L"Top",
+            &WindowPlacement.rcNormalPosition.top,
+            sizeof(LONG),
+            30
+            );
+
+    dwType = ReadRegistryData(
+            hKey,
+            lpszPath,
+            KEY_READ, 
+            L"Right",
+            &WindowPlacement.rcNormalPosition.right,
+            sizeof(LONG),
+            DEFAULT_MAINWINDOW_WIDTH
+            );
+
+    dwType = ReadRegistryData(
+            hKey,
+            lpszPath,
+            KEY_READ, 
+            L"Bottom",
+            &WindowPlacement.rcNormalPosition.bottom,
+            sizeof(LONG), 
+            DEFAULT_MAINWINDOW_HEIGHT
+            );
+
+    if(WindowPlacement.showCmd == SW_SHOWMINIMIZED)
+    {
+        WindowPlacement.showCmd = SW_RESTORE;
+    }
+
+    WindowPlacement.ptMinPosition.x = WindowPlacement.ptMinPosition.y = 0;
+    WindowPlacement.ptMaxPosition.x = WindowPlacement.ptMaxPosition.y = 0;
+    SetWindowPlacement(hWnd, &WindowPlacement);
+}
 
 void PlaySelectedItem(HWND hWnd, PlayerCallback* pCallback, IMFPMediaPlayer **pPlayer, WCHAR* Return, BOOL bPaused){
     if(pCallback == NULL)
@@ -817,3 +946,4 @@ LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPAR
 
     return DefWindowProc(hWnd, iMessage, wParam, lParam);
 }
+

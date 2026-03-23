@@ -6,16 +6,11 @@
 #define CLASS_NAME					L"Bittypak"
 #define TEMPFILENAME				L"this_file_is_a_recording_temp_file_do_not_delete_it.wav"
 
-// Mainwindow size & Registry Default Value
-#define DEFAULT_MAINWINDOW_WIDTH	400
-#define DEFAULT_MAINWINDOW_HEIGHT	200
-
 // Spectrum effect
 #define FFT_SIZE                    1024
 #define BINS                        160
 #define PCM_BITS                    16
 
-// Common Macros
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 #define GET_X_LPARAM(pt) ((int)(short)LOWORD(pt))
@@ -160,12 +155,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
     DWORD dwType;
     RECT DefaultRect;
-    WINDOWPLACEMENT WindowPlacement;
 
     int nCount;
     WCHAR Name[0x40];
     WCHAR Debug[0x100];
-    WCHAR PlaylistName[MAX_PATH];
+    WCHAR RemainFileName[MAX_PATH];
 
     switch (iMessage){
         case WM_CREATE:
@@ -695,10 +689,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                     break;
 
                 case IDM_CREATE_PLAYLIST:
-                    if(ShowInputPopup(hWnd, PlaylistName, MAX_PATH, 1))
+                    if(ShowInputPopup(hWnd, RemainFileName, MAX_PATH, 1))
                     {
                         SavePlaylist(hWnd);
-                        CreatePlaylist(hWnd, PlaylistName, TRUE);
+                        CreatePlaylist(hWnd, RemainFileName, TRUE);
                     }
                     break;
 
@@ -888,69 +882,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                 SendMessage(hVolume, CSM_SETGAP, (WPARAM)5, (LPARAM)0);
                 SendMessage(hVolume, CSM_SETPOSITION, (WPARAM)255, 0);
 
-                WindowPlacement = {
-                    .length = sizeof(WINDOWPLACEMENT),
-                    .flags = 0,
-                };
-
-                dwType = ReadRegistryData(
-                        HKEY_CURRENT_USER,
-                        KEY_PATH_POSITION,
-                        KEY_READ,
-                        L"CurrentState",
-                        &WindowPlacement.showCmd,
-                        sizeof(UINT),
-                        SW_SHOW
-                        );
-
-                dwType = ReadRegistryData(
-                        HKEY_CURRENT_USER,
-                        KEY_PATH_POSITION,
-                        KEY_READ,
-                        L"Left",
-                        &WindowPlacement.rcNormalPosition.left,
-                        sizeof(LONG),
-                        30
-                        );
-
-                dwType = ReadRegistryData(
-                        HKEY_CURRENT_USER, 
-                        KEY_PATH_POSITION,
-                        KEY_READ,
-                        L"Top",
-                        &WindowPlacement.rcNormalPosition.top,
-                        sizeof(LONG),
-                        30
-                        );
-
-                dwType = ReadRegistryData(
-                        HKEY_CURRENT_USER,
-                        KEY_PATH_POSITION,
-                        KEY_READ, 
-                        L"Right",
-                        &WindowPlacement.rcNormalPosition.right,
-                        sizeof(LONG),
-                        DEFAULT_MAINWINDOW_WIDTH
-                        );
-
-                dwType = ReadRegistryData(
-                        HKEY_CURRENT_USER,
-                        KEY_PATH_POSITION,
-                        KEY_READ, 
-                        L"Bottom",
-                        &WindowPlacement.rcNormalPosition.bottom,
-                        sizeof(LONG), 
-                        DEFAULT_MAINWINDOW_HEIGHT
-                        );
-
-                if(WindowPlacement.showCmd == SW_SHOWMINIMIZED)
-                {
-                    WindowPlacement.showCmd = SW_RESTORE;
-                }
-
-                WindowPlacement.ptMinPosition.x = WindowPlacement.ptMinPosition.y = 0;
-                WindowPlacement.ptMaxPosition.x = WindowPlacement.ptMaxPosition.y = 0;
-                SetWindowPlacement(hWnd, &WindowPlacement);
+                LoadPosition(hWnd, HKEY_CURRENT_USER, KEY_PATH_POSITION);
 
                 dwType = ReadRegistryData(
                         HKEY_CURRENT_USER,
@@ -981,8 +913,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                 for(int i=0; i<nCount; i++)
                 {
                     wsprintf(Name, L"%d", i);
-                    ReadRegistryData(HKEY_CURRENT_USER, KEY_PATH_PLAYLIST, KEY_READ, Name, PlaylistName, sizeof(PlaylistName), (INT_PTR)L"");
-                    SendMessage(hComboBox, CB_ADDSTRING, 0, (LPARAM)PlaylistName);
+                    ReadRegistryData(HKEY_CURRENT_USER, KEY_PATH_PLAYLIST, KEY_READ, Name, RemainFileName, sizeof(RemainFileName), (INT_PTR)L"");
+                    SendMessage(hComboBox, CB_ADDSTRING, 0, (LPARAM)RemainFileName);
                 }
 
                 if(nCount != 0)
@@ -1552,62 +1484,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
             if(hBitmap){ DeleteObject(hBitmap); }
             Cleanup();
 
-            // TODO: 
-            WindowPlacement = {
-                .length = sizeof(WINDOWPLACEMENT),
-            };
-
-            GetWindowPlacement(hWnd, &WindowPlacement);
-            WriteRegistryData(
-                    HKEY_CURRENT_USER,
-                    KEY_PATH_POSITION,
-                    KEY_WRITE,
-                    L"CurrentState",
-                    REG_DWORD,
-                    &WindowPlacement.showCmd,
-                    sizeof(UINT)
-                    );
-
-            WriteRegistryData(
-                    HKEY_CURRENT_USER,
-                    KEY_PATH_POSITION,
-                    KEY_WRITE,
-                    L"Left",
-                    REG_DWORD,
-                    &WindowPlacement.rcNormalPosition.left,
-                    sizeof(LONG)
-                    );
-
-            WriteRegistryData(
-                    HKEY_CURRENT_USER,
-                    KEY_PATH_POSITION,
-                    KEY_WRITE,
-                    L"Top",
-                    REG_DWORD,
-                    &WindowPlacement.rcNormalPosition.top,
-                    sizeof(LONG)
-                    );
-
-            WriteRegistryData(
-                    HKEY_CURRENT_USER, 
-                    KEY_PATH_POSITION,
-                    KEY_WRITE,
-                    L"Right",
-                    REG_DWORD,
-                    &WindowPlacement.rcNormalPosition.right, 
-                    sizeof(LONG)
-                    );
-
-            WriteRegistryData(
-                    HKEY_CURRENT_USER,
-                    KEY_PATH_POSITION,
-                    KEY_WRITE,
-                    L"Bottom", 
-                    REG_DWORD,
-                    &WindowPlacement.rcNormalPosition.bottom,
-                    sizeof(LONG)
-                    );
-
+            SavePosition(hWnd, HKEY_CURRENT_USER, KEY_PATH_POSITION);
             WriteRegistryData(
                     HKEY_CURRENT_USER,
                     KEY_PATH_POSITION,
@@ -1633,15 +1510,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
             for(int i=0; i<nCount; i++)
             {
                 wsprintf(Name, L"%d", i);
-                SendMessage(hComboBox, CB_GETLBTEXT, i, (LPARAM)PlaylistName);
+                SendMessage(hComboBox, CB_GETLBTEXT, i, (LPARAM)RemainFileName);
                 WriteRegistryData(
                         HKEY_CURRENT_USER,
                         KEY_PATH_PLAYLIST,
                         KEY_WRITE,
                         Name,
                         REG_SZ,
-                        PlaylistName,
-                        sizeof(WCHAR) * (wcslen(PlaylistName) + 1)
+                        RemainFileName,
+                        sizeof(WCHAR) * (wcslen(RemainFileName) + 1)
                         );
             }
 
