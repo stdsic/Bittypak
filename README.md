@@ -44,6 +44,8 @@ Windows Legacy API와 COM을 이용한 뮤직 플레이어입니다.<br>
 - stdsic — @https://github.com/stdsic/Bittypak<br>
 <br><br>
 ## 📚 Version History<br>
+- 1.0.5<br>
+  - 알려진 버그 수정: 플레이리스트 관리 및 마지막 위치/상태 저장 로직 변경
 - 1.0.4<br>
   - 타이머 오류 수정<br>
 - 1.0.3<br>
