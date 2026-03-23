@@ -67,7 +67,7 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR, int nCmdShow){
     RegisterClassEx(&wcex);
 
     HWND hWnd = CreateWindowEx(
-            WS_EX_CLIENTEDGE,  //| WS_EX_ACCEPTFILES,
+            WS_EX_CLIENTEDGE | WS_EX_TOPMOST,
             CLASS_NAME,
             CLASS_NAME,
             WS_POPUP | WS_BORDER | WS_VISIBLE | WS_CLIPCHILDREN,

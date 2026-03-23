@@ -924,7 +924,7 @@ LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPAR
                     if(pData->Mode == 0)
                     {
                         wcscat(pData->pOut, L".wav");
-                   }
+                    }
 
                     DestroyWindow(hWnd);
                 }
