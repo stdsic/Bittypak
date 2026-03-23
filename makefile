@@ -50,6 +50,6 @@ pr:
 	@echo "TRCF = $(TRCF)"
 
 clean:
-	del $(EXEDIR)\*.exe
-	del $(OBJDIR)\*.o
-	del $(OBJDIR)\*.res
+	rm $(EXEDIR)/*.exe
+	rm $(OBJDIR)/*.o
+	rm $(RSRCDIR)/*.res

@@ -166,9 +166,9 @@ void OpenFiles(HWND hWnd)
             AppendFile(hListView, lpstrFile);
         }
 
-        HWND hButton = GetDlgItem(hWnd, IDC_BTNFIRST + 1);
+        HWND hButton = GetDlgItem(hWnd, IDC_BTNSTOP + 1);
         SendMessage(hButton, CBM_SETSTATE, DOWN, (LPARAM)0);
-        SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 1, PRESSED), (LPARAM)hButton);
+        SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNSTOP + 1, PRESSED), (LPARAM)hButton);
 
         SavePlaylist(hWnd);
     }
@@ -343,16 +343,14 @@ BOOL ShowInputPopup(HWND hParent, WCHAR* Out, int MaxLength, int iMode){
     WNDCLASS twc;
     BOOL bAlreadyRegister = GetClassInfo(GetModuleHandle(NULL), POPUP_CLASS_NAME, &twc);
 
-    if(bAlreadyRegister)
+    if(!bAlreadyRegister)
     {
-        return FALSE;
+        WNDCLASS wc = { 0 };
+        wc.lpfnWndProc = InputPopupWndProc;
+        wc.hInstance = GetModuleHandle(NULL);
+        wc.lpszClassName = POPUP_CLASS_NAME;
+        RegisterClass(&wc);
     }
-
-    WNDCLASS wc = { 0 };
-    wc.lpfnWndProc = InputPopupWndProc;
-    wc.hInstance = GetModuleHandle(NULL);
-    wc.lpszClassName = POPUP_CLASS_NAME;
-    RegisterClass(&wc);
 
     INPUT_POPUP_DATA data = { 0 };
 
@@ -444,52 +442,6 @@ void CreatePlaylist(HWND hWnd, WCHAR* Name, BOOL bDelete /*= FALSE */){
     }
 }
 
-void SavePlaylist(HWND hWnd)
-{
-    WCHAR PlaylistName[MAX_PATH];
-    HWND hComboBox = GetDlgItem(hWnd, IDC_CBFIRST);
-
-    int Select = SendMessage(hComboBox, CB_GETCURSEL, 0,0);
-    SendMessage(hComboBox, CB_GETLBTEXT, Select, (LPARAM)PlaylistName);
-
-    HWND hListView = GetDlgItem(hWnd, IDC_LVFIRST);
-    int nCount = ListView_GetItemCount(hListView);
-
-    WCHAR PATH[MAX_PATH];
-    wsprintf(PATH, L"%s\\%s", KEY_PATH_PLAYLIST, PlaylistName);
-
-    DeleteRegistryValues(HKEY_CURRENT_USER, PATH);
-
-    WriteRegistryData(
-            HKEY_CURRENT_USER,
-            PATH,
-            KEY_WRITE,
-            L"Count",
-            REG_DWORD,
-            &nCount,
-            sizeof(LONG)
-            );
-
-    LVITEM LI;
-    WCHAR Name[0x40];
-    for(int i=0; i<nCount; i++)
-    {
-        LI.mask = LVIF_PARAM;
-        LI.iItem = i;
-        ListView_GetItem(hListView, &LI);
-        wsprintf(Name, L"%d", i);
-        WriteRegistryData(
-                HKEY_CURRENT_USER,
-                PATH,
-                KEY_WRITE,
-                Name,
-                REG_SZ,
-                (WCHAR*)LI.lParam,
-                sizeof(WCHAR) * (wcslen((WCHAR*)LI.lParam) + 1)
-                );
-    }
-}
-
 BOOL DestroyPlaylist(HWND hWnd)
 {
     HWND hComboBox = GetDlgItem(hWnd, IDC_CBFIRST);
@@ -563,6 +515,52 @@ BOOL DestroyPlaylist(HWND hWnd)
     return TRUE;
 }
 
+void SavePlaylist(HWND hWnd)
+{
+    WCHAR PlaylistName[MAX_PATH];
+    HWND hComboBox = GetDlgItem(hWnd, IDC_CBFIRST);
+
+    int Select = SendMessage(hComboBox, CB_GETCURSEL, 0,0);
+    SendMessage(hComboBox, CB_GETLBTEXT, Select, (LPARAM)PlaylistName);
+
+    HWND hListView = GetDlgItem(hWnd, IDC_LVFIRST);
+    int nCount = ListView_GetItemCount(hListView);
+
+    WCHAR PATH[MAX_PATH];
+    wsprintf(PATH, L"%s\\%s", KEY_PATH_PLAYLIST, PlaylistName);
+
+    DeleteRegistryValues(HKEY_CURRENT_USER, PATH);
+
+    WriteRegistryData(
+            HKEY_CURRENT_USER,
+            PATH,
+            KEY_WRITE,
+            L"Count",
+            REG_DWORD,
+            &nCount,
+            sizeof(LONG)
+            );
+
+    LVITEM LI;
+    WCHAR Name[0x40];
+    for(int i=0; i<nCount; i++)
+    {
+        LI.mask = LVIF_PARAM;
+        LI.iItem = i;
+        ListView_GetItem(hListView, &LI);
+        wsprintf(Name, L"%d", i);
+        WriteRegistryData(
+                HKEY_CURRENT_USER,
+                PATH,
+                KEY_WRITE,
+                Name,
+                REG_SZ,
+                (WCHAR*)LI.lParam,
+                sizeof(WCHAR) * (wcslen((WCHAR*)LI.lParam) + 1)
+                );
+    }
+}
+
 void LoadPlaylist(HWND hWnd)
 {
     WCHAR PlaylistName[MAX_PATH];
@@ -610,16 +608,18 @@ void LoadPlaylist(HWND hWnd)
     }
 }
 
-void SavePosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath)
+void SavePosition(HWND hWnd, HKEY hKey, LPCWSTR hSubKey, int ExtendSize)
 {
     WINDOWPLACEMENT WindowPlacement = {
         .length = sizeof(WINDOWPLACEMENT),
     };
 
     GetWindowPlacement(hWnd, &WindowPlacement);
+    WindowPlacement.rcNormalPosition.bottom -= ExtendSize;
+
     WriteRegistryData(
             hKey,
-            lpszPath,
+            hSubKey,
             KEY_WRITE,
             L"CurrentState",
             REG_DWORD,
@@ -629,7 +629,7 @@ void SavePosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath)
 
     WriteRegistryData(
             hKey,
-            lpszPath,
+            hSubKey,
             KEY_WRITE,
             L"Left",
             REG_DWORD,
@@ -639,7 +639,7 @@ void SavePosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath)
 
     WriteRegistryData(
             hKey,
-            lpszPath,
+            hSubKey,
             KEY_WRITE,
             L"Top",
             REG_DWORD,
@@ -649,7 +649,7 @@ void SavePosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath)
 
     WriteRegistryData(
             hKey, 
-            lpszPath,
+            hSubKey,
             KEY_WRITE,
             L"Right",
             REG_DWORD,
@@ -659,7 +659,7 @@ void SavePosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath)
 
     WriteRegistryData(
             hKey,
-            lpszPath,
+            hSubKey,
             KEY_WRITE,
             L"Bottom", 
             REG_DWORD,
@@ -668,9 +668,8 @@ void SavePosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath)
             );
 }
 
-void LoadPosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath)
+void LoadPosition(HWND hWnd, HKEY hKey, LPCWSTR hSubKey)
 {
-
     WINDOWPLACEMENT WindowPlacement = {
         .length = sizeof(WINDOWPLACEMENT),
         .flags = 0,
@@ -679,7 +678,7 @@ void LoadPosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath)
     DWORD dwType;
     dwType = ReadRegistryData(
             hKey,
-            lpszPath,
+            hSubKey,
             KEY_READ,
             L"CurrentState",
             &WindowPlacement.showCmd,
@@ -689,7 +688,7 @@ void LoadPosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath)
 
     dwType = ReadRegistryData(
             hKey,
-            lpszPath,
+            hSubKey,
             KEY_READ,
             L"Left",
             &WindowPlacement.rcNormalPosition.left,
@@ -699,7 +698,7 @@ void LoadPosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath)
 
     dwType = ReadRegistryData(
             hKey, 
-            lpszPath,
+            hSubKey,
             KEY_READ,
             L"Top",
             &WindowPlacement.rcNormalPosition.top,
@@ -709,7 +708,7 @@ void LoadPosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath)
 
     dwType = ReadRegistryData(
             hKey,
-            lpszPath,
+            hSubKey,
             KEY_READ, 
             L"Right",
             &WindowPlacement.rcNormalPosition.right,
@@ -719,7 +718,7 @@ void LoadPosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath)
 
     dwType = ReadRegistryData(
             hKey,
-            lpszPath,
+            hSubKey,
             KEY_READ, 
             L"Bottom",
             &WindowPlacement.rcNormalPosition.bottom,
@@ -732,6 +731,7 @@ void LoadPosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath)
         WindowPlacement.showCmd = SW_RESTORE;
     }
 
+    // 메인 윈도우에서 최대,최소 크기 설정하므로 0으로 초기화
     WindowPlacement.ptMinPosition.x = WindowPlacement.ptMinPosition.y = 0;
     WindowPlacement.ptMaxPosition.x = WindowPlacement.ptMaxPosition.y = 0;
     SetWindowPlacement(hWnd, &WindowPlacement);
@@ -743,7 +743,7 @@ void PlaySelectedItem(HWND hWnd, PlayerCallback* pCallback, IMFPMediaPlayer **pP
         return;
     }
 
-    HWND hButton = GetDlgItem(hWnd, IDC_BTNFIRST + 1);
+    HWND hButton = GetDlgItem(hWnd, IDC_BTNSTOP + 1);
     HWND hListView = GetDlgItem(hWnd, IDC_LVFIRST);
     HWND hVolume = GetDlgItem(hWnd, IDC_SCRLFIRST + 1);
 
@@ -810,7 +810,7 @@ void PlayNextOrPrev(HWND hWnd, PlayerCallback* pCallback, IMFPMediaPlayer** pPla
         *pPlayer = NULL;
     }
 
-    HWND hButton = GetDlgItem(hWnd, IDC_BTNFIRST + 1);
+    HWND hButton = GetDlgItem(hWnd, IDC_BTNSTOP + 1);
     HWND hListView = GetDlgItem(hWnd, IDC_LVFIRST);
 
     int nCount = ListView_GetItemCount(hListView);
@@ -851,7 +851,7 @@ void PlayNextOrPrev(HWND hWnd, PlayerCallback* pCallback, IMFPMediaPlayer** pPla
     ListView_SetItemState(hListView, -1, 0, LVIS_SELECTED | LVIS_FOCUSED);
     ListView_SetItemState(hListView, SelectItem, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
     SendMessage(hButton, CBM_SETSTATE, DOWN, (LPARAM)0);
-    SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 1, PRESSED), (LPARAM)hButton);
+    SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNSTOP + 1, PRESSED), (LPARAM)hButton);
 }
 
 LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam){
@@ -946,4 +946,3 @@ LRESULT CALLBACK InputPopupWndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPAR
 
     return DefWindowProc(hWnd, iMessage, wParam, lParam);
 }
-

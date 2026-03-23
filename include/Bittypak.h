@@ -25,8 +25,8 @@ void CreatePlaylist(HWND hWnd, WCHAR* Name, BOOL bDelete = FALSE);
 BOOL DestroyPlaylist(HWND hWnd);
 void SavePlaylist(HWND hWnd);
 void LoadPlaylist(HWND hWnd);
-void SavePosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath);
-void LoadPosition(HWND hWnd, HKEY hKey, LPCWSTR lpszPath);
+void SavePosition(HWND hWnd, HKEY hKey, LPCWSTR hSubKey, int ExtendSize = 0);
+void LoadPosition(HWND hWnd, HKEY hKey, LPCWSTR hSubKey);
 
 void PlaySelectedItem(HWND hWnd, PlayerCallback* pCallback, IMFPMediaPlayer **pPlayer, WCHAR* Return, BOOL bPaused = FALSE);
 void PlayNextOrPrev(HWND hWnd, PlayerCallback* pCallback, IMFPMediaPlayer** pPlayer, BOOL bLoop, BOOL bRandom, BOOL bNext);

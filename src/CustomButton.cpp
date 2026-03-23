@@ -72,7 +72,7 @@ LRESULT CALLBACK CustomButtonProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARA
 			hParent = GetParent(hWnd);
 			pData = (tag_CustomButtonData*)calloc(1, sizeof(struct tag_CustomButtonData));
 			for (int i = 0; i < BTN_COUNT; i++) {
-				HWND hTarget = GetDlgItem(hParent, IDC_BTNFIRST + i);
+				HWND hTarget = GetDlgItem(hParent, IDC_BTNSTOP + i);
 				if (hTarget == hWnd) {
 					pData->Index = (enum tag_ButtonIndex)i;
 					pData->State = NORMAL;

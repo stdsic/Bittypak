@@ -99,7 +99,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
     static BOOL bFirst = TRUE,
                 bSeeking = FALSE,
-                bExtended,
+                bExtend,
                 bSpectrum,
                 bOnWindow,
                 bLoop,
@@ -114,7 +114,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                MinWidth,	// BTN_COUNT * ButtonWidth + BTN_COUNT * Padding;
                MinHeight,	// (rcClose.bottom + ButtonHeight + Padding * 2) * 2;
                MM,
-               SS;
+               SS,
+               CurrentWidth,
+               CurrentHeight,
+               ExtendSize,
+               MaxAnimationScene,
+               Scene;
 
     static const WCHAR Description[0x10] = L"Playlist";
     static const WCHAR TimeSample[0x20] = L"[00:00:00 / 00:00:00]";
@@ -156,7 +161,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
     DWORD dwType;
     RECT DefaultRect;
 
-    int nCount;
+    int nCount, Index;
     WCHAR Name[0x40];
     WCHAR Debug[0x100];
     WCHAR RemainFileName[MAX_PATH];
@@ -182,7 +187,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                         WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | PUSH,
                         0, 0, 0, 0,
                         hWnd,
-                        (HMENU)(INT_PTR)(IDC_BTNFIRST),
+                        (HMENU)(INT_PTR)(IDC_BTNSTOP),
                         GetModuleHandle(NULL),
                         NULL
                         );
@@ -193,7 +198,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                         WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | CHECK, 
                         0, 0, 0, 0,
                         hWnd, 
-                        (HMENU)(INT_PTR)(IDC_BTNFIRST + 1),
+                        (HMENU)(INT_PTR)(IDC_BTNPLAY),
                         GetModuleHandle(NULL),
                         NULL
                         );
@@ -206,7 +211,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                             WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | PUSH,
                             0, 0, 0, 0,
                             hWnd,
-                            (HMENU)(INT_PTR)(IDC_BTNFIRST + i),
+                            (HMENU)(INT_PTR)(IDC_BTNSTOP + i),
                             GetModuleHandle(NULL),
                             NULL
                             );
@@ -218,7 +223,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                         WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | CHECK, 
                         0, 0, 0, 0, 
                         hWnd, 
-                        (HMENU)(INT_PTR)(IDC_BTNFIRST + 5),
+                        (HMENU)(INT_PTR)(IDC_BTNVIEW),
                         GetModuleHandle(NULL), 
                         NULL
                         );
@@ -229,7 +234,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                         WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | CHECK, 
                         0, 0, 0, 0,
                         hWnd, 
-                        (HMENU)(INT_PTR)(IDC_BTNFIRST + 6), 
+                        (HMENU)(INT_PTR)(IDC_BTNRECORD), 
                         GetModuleHandle(NULL),
                         NULL
                         );
@@ -240,7 +245,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                         WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | PUSH, 
                         0, 0, 0, 0, 
                         hWnd,
-                        (HMENU)(INT_PTR)(IDC_BTNFIRST + 7),
+                        (HMENU)(INT_PTR)(IDC_BTNTIMER),
                         GetModuleHandle(NULL),
                         NULL
                         );
@@ -251,7 +256,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                         WS_VISIBLE | WS_CHILD | WS_BORDER | BS_PUSHBUTTON | CHECK,
                         0, 0, 0, 0, 
                         hWnd,
-                        (HMENU)(INT_PTR)(IDC_BTNFIRST + 8),
+                        (HMENU)(INT_PTR)(IDC_BTNSPECTRUM),
                         GetModuleHandle(NULL),
                         NULL
                         );
@@ -350,7 +355,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
         case WM_COMMAND:
             switch (LOWORD(wParam))
             {
-                case IDC_BTNFIRST:
+                case IDC_BTNSTOP:
                     if(HIWORD(wParam) == PRESSED)
                     {
                         if(pPlayer)
@@ -379,7 +384,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                     }
                     break;
 
-                case IDC_BTNFIRST + 1:
+                case IDC_BTNPLAY:
                     // 리스트 뷰 활용 -> 선택한 항목 문자열 불러온 후 파일 재생
                     if(HIWORD(wParam) == PRESSED)
                     {
@@ -401,7 +406,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                                 }
                                 else
                                 {
-                                    SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 3, PRESSED), (LPARAM)hBtns[3]);
+                                    SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNNEXT, PRESSED), (LPARAM)hBtns[3]);
                                 }
                             }
                         }
@@ -411,7 +416,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                             SetTimer(hWnd, 3, 30000, NULL);
                         }
                     }
-                    else
+
+                    // TODO: 버튼 관련 로직 전부 수정 필요
+                    if(HIWORD(wParam) == RELEASED)
                     {
                         memset(CurrentItem, 0, sizeof(CurrentItem));
                         PlaySelectedItem(hWnd, pCallback, &pPlayer, CurrentItem, TRUE);
@@ -420,7 +427,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                     }
                     break;
 
-                case IDC_BTNFIRST + 2:
+                case IDC_BTNPREV:
                     if(HIWORD(wParam) == PRESSED)
                     {
                         SendMessage(hBtns[1], CBM_SETSTATE, UP, (LPARAM)0);
@@ -430,7 +437,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                     }
                     break;
 
-                case IDC_BTNFIRST + 3:
+                case IDC_BTNNEXT:
                     if(HIWORD(wParam) == PRESSED)
                     {
                         SendMessage(hBtns[1], CBM_SETSTATE, UP, (LPARAM)0);
@@ -440,26 +447,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                     }
                     break;
 
-                case IDC_BTNFIRST + 4:
+                case IDC_BTNOPENFILE:
                     if(HIWORD(wParam) == PRESSED)
                     {
                         OpenFiles(hWnd);
                     }
                     break;
 
-                case IDC_BTNFIRST + 5:
+                case IDC_BTNVIEW:
                     {
                         GetWindowRect(hWnd, &wrt);
 
-                        int CurrentWidth = wrt.right - wrt.left;
-                        int CurrentHeight = wrt.bottom - wrt.top;
-                        int ExtendedHeight = MaxCount * ListBoxItemHeight;
-                        int MaxAnimationScene = 8;
-                        int Scene = ExtendedHeight / MaxAnimationScene;
+                        CurrentWidth = wrt.right - wrt.left;
+                        CurrentHeight = wrt.bottom - wrt.top;
+                        ExtendSize = MaxCount * ListBoxItemHeight;
+                        MaxAnimationScene = 8;
+                        Scene = ExtendSize / MaxAnimationScene;
 
                         if(HIWORD(wParam) == RELEASED)
                         {
-                            bExtended = FALSE;
+                            bExtend = FALSE;
                             SetWindowPos(hComboBox, NULL, 0, 0, 0, 0, SWP_NOZORDER | SWP_NOSIZE | SWP_NOMOVE | SWP_HIDEWINDOW);
                             SetWindowPos(hListView, NULL, 0, 0, 0, 0, SWP_NOZORDER | SWP_NOSIZE | SWP_NOMOVE | SWP_HIDEWINDOW);
 
@@ -476,7 +483,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
                         if(HIWORD(wParam) == PRESSED)
                         {
-                            bExtended = TRUE;
+                            bExtend = TRUE;
                             for(int i = 1; i <= MaxAnimationScene; i++){
                                 SetWindowPos(hWnd, NULL, 0, 0, CurrentWidth, CurrentHeight + Scene * i, SWP_NOMOVE | SWP_NOZORDER);
                                 InvalidateRect(hWnd, NULL, FALSE);
@@ -503,7 +510,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                     }
                     break;
 
-                case IDC_BTNFIRST + 6:
+                case IDC_BTNRECORD:
                     if(HIWORD(wParam) == PRESSED)
                     {
                         QueryPerformanceFrequency(&Frequency);
@@ -559,7 +566,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                     }
                     break;
 
-                case IDC_BTNFIRST + 7:
+                case IDC_BTNTIMER:
                     if(HIWORD(wParam) == PRESSED){
                         // Input Box: Format(MM:SS)
                         WCHAR RecordTimer[0x10] = L"";
@@ -588,13 +595,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                             {
                                 bRecordTimer = TRUE;
                                 SendMessage(hBtns[6], CBM_SETSTATE, DOWN, (LPARAM)0);
-                                SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 6, PRESSED), (LPARAM)hBtns[6]);
+                                SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNRECORD, PRESSED), (LPARAM)hBtns[6]);
                             }
                         }
                     }
                     break;
 
-                case IDC_BTNFIRST + 8:
+                case IDC_BTNSPECTRUM:
                     if(HIWORD(wParam) == PRESSED)
                     {
                         bSpectrum = TRUE;
@@ -629,7 +636,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
                             LoadPlaylist(hWnd);
                             SendMessage(hBtns[1], CBM_SETSTATE, DOWN, (LPARAM)0);
-                            SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 1, PRESSED), (LPARAM)hBtns[1]);
+                            SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNPLAY, PRESSED), (LPARAM)hBtns[1]);
                             break;
                     }
                     break;
@@ -712,7 +719,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
                         LoadPlaylist(hWnd);
                         SendMessage(hBtns[1], CBM_SETSTATE, DOWN, (LPARAM)0);
-                        SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 1, PRESSED), (LPARAM)hBtns[1]);
+                        SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNPLAY, PRESSED), (LPARAM)hBtns[1]);
                     }
                     break;
 
@@ -896,8 +903,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
 
                 if(bSpectrum)
                 {
-                    SendMessage(hBtns[7], CBM_SETSTATE, DOWN, (LPARAM)0);
-                    SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 8, PRESSED), (LPARAM)hBtns[8]);
+                    SendMessage(hBtns[8], CBM_SETSTATE, DOWN, (LPARAM)0);
+                    SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNSPECTRUM, PRESSED), (LPARAM)hBtns[8]);
                 }
 
                 dwType = ReadRegistryData(
@@ -913,13 +920,31 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                 for(int i=0; i<nCount; i++)
                 {
                     wsprintf(Name, L"%d", i);
-                    ReadRegistryData(HKEY_CURRENT_USER, KEY_PATH_PLAYLIST, KEY_READ, Name, RemainFileName, sizeof(RemainFileName), (INT_PTR)L"");
+                    ReadRegistryData(
+                            HKEY_CURRENT_USER, 
+                            KEY_PATH_PLAYLIST,
+                            KEY_READ, 
+                            Name,
+                            RemainFileName,
+                            sizeof(RemainFileName),
+                            (INT_PTR)L""
+                            );
+
                     SendMessage(hComboBox, CB_ADDSTRING, 0, (LPARAM)RemainFileName);
                 }
 
                 if(nCount != 0)
                 {
-                    SendMessage(hComboBox, CB_SETCURSEL, 0,0);
+                   ReadRegistryData(
+                            HKEY_CURRENT_USER,
+                            KEY_PATH_PLAYLIST,
+                            KEY_READ,
+                            L"LastSelectedItem",
+                            &Index,
+                            sizeof(LONG),
+                            0
+                            );
+                    SendMessage(hComboBox, CB_SETCURSEL, Index, 0);
                     LoadPlaylist(hWnd);
                 }
                 else
@@ -1128,7 +1153,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                                 pPlayer = NULL;
                             }
                             SendMessage(hBtns[1], CBM_SETSTATE, DOWN, (LPARAM)0);
-                            SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 1, PRESSED), (LPARAM)hBtns[1]);
+                            SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNPLAY, PRESSED), (LPARAM)hBtns[1]);
                         }
                         break;
 
@@ -1222,7 +1247,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                                 InvalidateRect(hWnd, NULL, FALSE);
                                 bRecordTimer = FALSE;
                                 SendMessage(hBtns[6], CBM_SETSTATE, UP, (LPARAM)0);
-                                SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 6, RELEASED), (LPARAM)hBtns[6]);
+                                SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNRECORD, RELEASED), (LPARAM)hBtns[6]);
                             }
                         }
                     }
@@ -1320,57 +1345,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
             return 0;
 
         case WM_CLOSE:
-            if(bExtended)
-            {
-                if(pCallback && pPlayer)
-                {
-                    MFP_MEDIAPLAYER_STATE State;
-                    State = pCallback->GetCurrentState();
-
-                    if(State == MFP_MEDIAPLAYER_STATE_PLAYING)
-                    {
-                        pPlayer->Stop();
-                        pPlayer->Shutdown();
-                        pPlayer->Release();
-                        pPlayer = NULL;
-                    }
-                }
-
-                GetWindowRect(hWnd, &wrt);
-                ShowWindow(hWnd, SW_HIDE);
-
-                int CurrentWidth = wrt.right - wrt.left;
-                int CurrentHeight = wrt.bottom - wrt.top;
-                int ExtendedHeight = MaxCount * ListBoxItemHeight;
-                int MaxAnimationScene = 8;
-                int Scene = ExtendedHeight / MaxAnimationScene;
-
-                bExtended = FALSE;
-                SetWindowPos(
-                        hComboBox,
-                        NULL, 
-                        0, 0, 0, 0,
-                        SWP_NOZORDER | SWP_NOSIZE | SWP_NOMOVE | SWP_HIDEWINDOW
-                        );
-
-                SetWindowPos(
-                        hListView,
-                        NULL,
-                        0, 0, 0, 0,
-                        SWP_NOZORDER | SWP_NOSIZE | SWP_NOMOVE | SWP_HIDEWINDOW
-                        );
-
-                for(int i = 1; i <= MaxAnimationScene; i++)
-                {
-                    if(CurrentWidth >= MinWidth && (CurrentHeight - Scene * i) >= MinHeight)
-                    {
-                        SetWindowPos(hWnd, NULL, 0, 0, CurrentWidth, CurrentHeight - Scene * i, SWP_NOMOVE | SWP_NOZORDER | SWP_HIDEWINDOW);
-                        InvalidateRect(hWnd, NULL, FALSE);
-                        Sleep(max(10, min(MaxAnimationScene * 10, (MaxAnimationScene - (i + 2)) * 10)));
-                    }
-                }
-            }
-
             DestroyWindow(hWnd);
             return 0;
 
@@ -1456,7 +1430,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                 DragFinish((HDROP)wParam);
 
                 SendMessage(hBtns[1], CBM_SETSTATE, DOWN, (LPARAM)0);
-                SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNFIRST + 1, PRESSED), (LPARAM)hBtns[1]);
+                SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNPLAY, PRESSED), (LPARAM)hBtns[1]);
 
                 SavePlaylist(hWnd);
             }
@@ -1468,6 +1442,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
             KillTimer(hWnd, 3);
             DeleteObject(hBkBrush);
             if(pPlayer){ 
+                pPlayer->Stop();
                 pPlayer->Shutdown();
                 pPlayer->Release();
                 pPlayer = NULL;
@@ -1484,7 +1459,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
             if(hBitmap){ DeleteObject(hBitmap); }
             Cleanup();
 
-            SavePosition(hWnd, HKEY_CURRENT_USER, KEY_PATH_POSITION);
+            SavePosition(hWnd, HKEY_CURRENT_USER, KEY_PATH_POSITION, bExtend ? ExtendSize : 0);
+
             WriteRegistryData(
                     HKEY_CURRENT_USER,
                     KEY_PATH_POSITION,
@@ -1495,7 +1471,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                     sizeof(LONG)
                     );
 
-            SavePlaylist(hWnd);
             nCount = SendMessage(hComboBox,CB_GETCOUNT,0,0);
             WriteRegistryData(
                     HKEY_CURRENT_USER,
@@ -1521,6 +1496,28 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                         sizeof(WCHAR) * (wcslen(RemainFileName) + 1)
                         );
             }
+
+            /*
+            for(int i=0; i<nCount; i++)
+            {
+                SendMessage(hComboBox, CB_SETCURSEL, i, 0)
+                SavePlaylist(hWnd);
+            }
+            */
+
+            // Last Selected Item
+            Index = SendMessage(hComboBox, CB_GETCURSEL, 0,0);
+            WriteRegistryData(
+                    HKEY_CURRENT_USER,
+                    KEY_PATH_PLAYLIST,
+                    KEY_WRITE,
+                    L"LastSelectedItem",
+                    REG_DWORD,
+                    &Index,
+                    sizeof(LONG)
+                    );
+
+            SavePlaylist(hWnd);
 
             PostQuitMessage(0);
             return 0;
@@ -1981,5 +1978,3 @@ DWORD WINAPI SpectrumThread(LPVOID lParam){
     CoUninitialize();
     return 0;
 }
-
-
