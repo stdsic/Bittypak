@@ -511,6 +511,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam)
                     break;
 
                 case IDC_BTNRECORD:
+                    if(pPlayer)
+                    {
+                        pPlayer->Stop();
+                        pPlayer->Shutdown();
+                        pPlayer->Release();
+                        pPlayer = NULL;
+                        SendMessage(hBtns[1], CBM_SETSTATE, UP, (LPARAM)0);
+                        wcscpy(TimeLine, TimeSample);
+                        InvalidateRect(hWnd, NULL, FALSE);
+
+                        SendMessage(hBtns[8], CBM_SETSTATE, UP, (LPARAM)0);
+                        SendMessage(hWnd, WM_COMMAND, MAKEWPARAM(IDC_BTNSPECTRUM, RELEASED), (LPARAM)hBtns[8]);
+                    }
+
                     if(HIWORD(wParam) == PRESSED)
                     {
                         QueryPerformanceFrequency(&Frequency);
